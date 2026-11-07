@@ -1,0 +1,23 @@
+#!/bin/sh
+# Checks out every repository in plugins.txt into $SUITE_DEPS (default deps/):
+# a shallow clone of its default branch, or, when already there, an update to
+# that branch's latest commit. All the repositories are public; no token.
+#
+#   bin/fetch
+set -e
+root=$(cd "$(dirname "$0")/.." && pwd)
+SUITE_DEPS=${SUITE_DEPS:-$root/deps}
+mkdir -p "$SUITE_DEPS"
+
+grep -v '^[[:space:]]*\(#\|$\)' "$root/plugins.txt" | while read -r name repo role; do
+  dir=$SUITE_DEPS/$name
+  url=https://github.com/$repo.git
+  if [ -d "$dir/.git" ]; then
+    echo "update $name"
+    git -C "$dir" fetch --quiet --depth 1 origin HEAD
+    git -C "$dir" reset --quiet --hard FETCH_HEAD
+  else
+    echo "clone  $name"
+    git clone --quiet --depth 1 "$url" "$dir"
+  fi
+done

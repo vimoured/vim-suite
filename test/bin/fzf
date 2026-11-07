@@ -1,0 +1,4 @@
+#!/bin/sh
+# Stand-in for the fzf binary: fzf.vim only asks for its version. Specs
+# replace fzf#run, so nothing is ever filtered.
+case "$1" in --version) echo "0.66.0 (suite)";; esac

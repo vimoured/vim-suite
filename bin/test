@@ -1,0 +1,39 @@
+#!/bin/sh
+# Runs the specs in test/ (or the ones given), each in its own Vim with the
+# dotfiles' config loaded, then the live plugins' own test/run.vim against the
+# same checkouts. Exits non-zero when anything fails.
+#
+#   bin/test                      everything
+#   bin/test test/fzf-utils.vim   one spec
+#
+# The checkouts are in $SUITE_DEPS (default deps/, made by bin/fetch).
+root=$(cd "$(dirname "$0")/.." && pwd)
+SUITE_DEPS=${SUITE_DEPS:-$root/deps}
+PATH=$root/test/bin:$PATH
+LC_ALL=C.UTF-8
+THEMIS_HOME=$SUITE_DEPS/vim-themis
+export SUITE_DEPS PATH LC_ALL THEMIS_HOME
+
+# A spec's Vim: Themis started by test/helper/startup.vim (see there why not
+# by vim-themis' bin/themis). Its report goes to stdout.
+themis() {
+  vim -u NONE -i NONE -n -N -e -s -c "source $root/test/helper/startup.vim" \
+    -- --reporter "${SUITE_REPORTER:-dot}" "$@" 3>&1 1>&2 2>&3 3>&-
+}
+
+failed=
+if [ $# -eq 0 ]; then
+  set -- "$root"/test/*.vim
+  live=$(awk '$3 == "live" { print $1 }' "$root/plugins.txt")
+fi
+for spec do
+  echo "### $(basename "$spec" .vim)"
+  themis "$spec" || failed="$failed $(basename "$spec" .vim)"
+done
+for name in ${live:-}; do
+  echo "### $name (its own test/run.vim)"
+  (cd "$SUITE_DEPS/$name" && PLUGINS=$SUITE_DEPS vim -Nu NONE -i NONE -Es -S test/run.vim) || failed="$failed $name"
+done
+[ -z "$failed" ] && echo "all passed" && exit 0
+echo "failed:$failed"
+exit 1

@@ -1,0 +1,33 @@
+# What the suite checks out into deps/, one repository per line.
+#
+# role:
+#   config    the dotfiles; its vim-rc/ is the configuration under test
+#   runner    vim-themis
+#   upstream  third-party plugins the frozen ones build on
+#   frozen    no new features: test/<name>.vim pins the behaviour the dotfiles
+#             use, and code outside it is removed
+#   live      still developed; its own test/run.vim runs here, against the
+#             frozen plugins it calls
+#
+# name            repository                 role
+dotfiles          roumail/dotfiles           config
+vim-themis        thinca/vim-themis          runner
+fzf               junegunn/fzf               upstream
+fzf.vim           junegunn/fzf.vim           upstream
+vim-dispatch      tpope/vim-dispatch         upstream
+vim-fugitive      tpope/vim-fugitive         upstream
+project-detect    roumail/project-detect     frozen
+vim-place         roumail/vim-place          frozen
+vim-lists         roumail/vim-lists          frozen
+vim-review        roumail/vim-review         frozen
+vim-draft         roumail/vim-draft          frozen
+buffer-tools      roumail/buffer-tools       frozen
+text-tools        roumail/text-tools         frozen
+glow-preview      roumail/glow-preview       frozen
+qf-tools          roumail/qf-tools           frozen
+dispatch-extras   roumail/dispatch-extras    frozen
+fzf-utils         roumail/fzf-utils          frozen
+pytest.vim        roumail/pytest.vim         frozen
+fugitive-extras   roumail/fugitive-extras    frozen
+gh-extras         roumail/gh-extras          frozen
+vim-prompts       roumail/vim-prompts        live
