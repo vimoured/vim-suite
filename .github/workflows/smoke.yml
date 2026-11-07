@@ -1,0 +1,30 @@
+name: smoke
+
+# The smoke test (bin/smoke): the dotfiles' Vim config with every plugin they
+# Plug, in a lean Linux image, started on a terminal; fails on any startup
+# error. By hand for now; later the second step after suite.yml.
+on:
+  workflow_dispatch:
+    inputs:
+      dotfiles_ref:
+        description: roumail/dotfiles branch, tag or commit to test
+        default: main
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          repository: vimoured/vim-suite
+          ref: main
+      - uses: actions/checkout@v5
+        with:
+          repository: roumail/dotfiles
+          ref: ${{ inputs.dotfiles_ref }}
+          path: deps/dotfiles
+      - name: Smoke test
+        run: bin/smoke deps/dotfiles

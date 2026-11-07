@@ -107,6 +107,15 @@ required, and force-pushes and deletion are blocked, with no bypass:
 gh api -X POST repos/vimoured/<plugin>/rulesets --input ruleset.json
 ```
 
+### Smoke test
+
+`bin/smoke` (needs Docker) checks the dotfiles as a whole: a lean Linux image
+(`smoke/`), the dotfiles' Vim config linked as `install.sh` links it, every
+plugin they `Plug` installed with `:PlugInstall`, then a real Vim started on a
+terminal; it fails on any startup error or plugin that didn't install. On
+GitHub, the *smoke* workflow runs it by hand, for a dotfiles branch, tag or
+commit (default `main`).
+
 Pushes to this repository run nothing. Check changes locally with `bin/test`
 before pushing them; to run CI by hand, against every plugin's `main`, use
 *Run workflow* on the Actions tab.

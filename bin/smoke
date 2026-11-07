@@ -1,0 +1,13 @@
+#!/bin/sh
+# The smoke test: the dotfiles' Vim config with every plugin they Plug, in a
+# lean Linux image (smoke/), started on a terminal; fails on any startup
+# error. Needs Docker.
+#
+#   bin/smoke                  the dotfiles in $SUITE_DEPS (deps/dotfiles)
+#   bin/smoke path/to/dotfiles another checkout
+set -e
+root=$(cd "$(dirname "$0")/.." && pwd)
+SUITE_DEPS=${SUITE_DEPS:-$root/deps}
+dots=$(cd "${1:-$SUITE_DEPS/dotfiles}" && pwd)
+docker build -q -t vim-suite-smoke "$root/smoke" >/dev/null
+docker run --rm -v "$dots:/dotfiles:ro" vim-suite-smoke

@@ -1,0 +1,29 @@
+#!/bin/sh
+# Runs in the smoke image, with the dotfiles at /dotfiles: sets Vim up as the
+# dotfiles' install.sh does, installs every plugin they Plug, then starts a
+# real Vim on a terminal. Fails when Vim reports an error or a plugin is
+# missing.
+set -eu
+dots=/dotfiles
+
+# install.sh, for Vim: vim-rc/ linked file by file into ~/.vim (link_tree),
+# ~/.vimrc, and the backup and swap directories
+cd "$dots/vim-rc"
+find . -type f | while read -r file; do
+  mkdir -p "$HOME/.vim/$(dirname "$file")"
+  ln -sfn "$dots/vim-rc/$file" "$HOME/.vim/$file"
+done
+cd "$HOME"
+ln -sfn "$HOME/.vim/.vimrc" "$HOME/.vimrc"
+mkdir -p "$HOME/.vim/backup" "$HOME/.vim/swap"
+
+echo "### plugins"
+# Ex mode skips the vimrc unless -u names it
+vim -Es -u "$HOME/.vimrc" -i NONE +PlugInstall +qall </dev/null || true
+ls "$HOME/.vim/plugged"
+
+echo "### startup"
+printf '# smoke\n' >"$HOME/smoke.md"
+script -qec "vim -i NONE -c 'source /smoke/check.vim' smoke.md" /tmp/typescript >/dev/null </dev/null || status=$?
+cat /tmp/smoke.out
+exit "${status:-0}"
