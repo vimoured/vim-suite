@@ -20,3 +20,12 @@ buffer-tools close_shows_the_last_used
 buffer-tools close_with_only_a_terminal_left
 # buffer-tools: :BufferClose uses bdelete!, so unsaved changes are lost
 buffer-tools close_keeps_unsaved_changes
+
+# text-tools: the Normalize commands replace text they can't read with
+# Python's traceback, instead of keeping it and showing an error
+text-tools normalize_keeps_text_it_cannot_read
+# text-tools: :NumberFoldMarkers run again adds a second number instead of
+# renumbering
+text-tools number_fold_markers_again_renumbers
+# text-tools: both fold marker commands raise E486 when there are no markers
+text-tools fold_marker_commands_without_markers
