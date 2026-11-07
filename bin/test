@@ -77,7 +77,7 @@ for spec do
   if [ -n "$unlisted" ] || [ "$ran" != "${plan:-x}" ] ||
     { [ "$status" -ne 0 ] && [ -z "$specknown" ]; }; then
     failed="$failed $name"
-    if [ -s "$vimout" ]; then
+    if grep -q '[^[:space:]]' "$vimout"; then
       echo "# Vim's output:"
       tr -d '\r' <"$vimout" | sed 's/^/#   /'
     fi
