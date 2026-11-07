@@ -18,15 +18,20 @@ known=$root/test/known-failures.txt
 raw=$(mktemp)
 report=$(mktemp)
 vimout=$(mktemp)
-trap 'rm -f "$raw" "$report" "$vimout"' EXIT
+# Vim's input: open, with nothing typed, as at a keyboard. At end of file
+# instead (</dev/null, or CI), a plugin polling for a key, as fugitive's :Git
+# does while git runs, makes the Ex-mode Vim quit mid-spec with status 0.
+keys=$(mktemp -u)
+mkfifo "$keys"
+exec 4<>"$keys"
+trap 'rm -f "$raw" "$report" "$vimout" "$keys"' EXIT
 
 # A spec's Vim: Themis started by test/helper/startup.vim (see there why not
 # by vim-themis' bin/themis). Its TAP report (Vim's stderr) goes to stdout.
-# Vim's own output goes to a file, shown when the spec fails: with it on
-# /dev/null, the fugitive-extras spec ended after 3 of its 13 tests.
+# Vim's own output goes to a file, shown when the spec fails.
 themis() {
   vim -u NONE -i NONE -n -N -e -s -c "source $root/test/helper/startup.vim" \
-    -- --reporter tap "$@" 2>&1 >"$vimout"
+    -- --reporter tap "$@" <&4 2>&1 >"$vimout"
 }
 
 # Whether "<suite> <test>" is in test/known-failures.txt
