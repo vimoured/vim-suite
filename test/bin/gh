@@ -1,33 +1,82 @@
 #!/bin/sh
-# Stand-in for gh: canned answers to what gh-extras asks (test/gh-extras.vim)
+# Stand-in for gh: canned answers to what gh-extras asks, about the repo
+# test/gh-extras.vim builds (GitHub's o/r): open PRs #7 (branch fix-login,
+# whose commits are there) and #8 (head never fetched), merged #5 and #4.
+# @BASE@ and @HEAD7@ are filled from that repo's main and the pushed
+# fix-login (origin/fix-login: local commits aren't on GitHub). Every
+# call, and what was sent on stdin, is appended to $GH_LOG.
+log=${GH_LOG:-/dev/null}
+input=
+case "$*" in *'--input -'*) input=$(cat) ;; esac
+{ echo "gh $*"; [ -n "$input" ] && echo "input: $input"; } >>"$log"
+
+rev() { git rev-parse --verify -q "$1" 2>/dev/null || echo 0000000000000000000000000000000000000000; }
+fill() { sed -e "s/@BASE@/$(rev main)/g" -e "s/@HEAD7@/$(rev origin/fix-login)/g"; }
+fail() { echo "$1" >&2; exit 1; }
+unfetched=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef
+
 case "$*" in
   'repo view'*) echo 'o r' ;;
+  'pr view --json number'*)
+    [ "$(git branch --show-current)" = fix-login ] && echo 7 ||
+      fail "no pull requests found for branch \"$(git branch --show-current)\"" ;;
+  # Only #7's branch is in the repo. The real one fetches first, so it never
+  # changes .git/HEAD in the second fugitive last read it (fugitive goes by
+  # its mtime, in seconds)
+  'pr checkout 7') sleep 1; git checkout -q fix-login ;;
+  'pr view --web '*) ;;
+  *'pulls/7/commits'*) rev origin/fix-login ;;
+  *'pulls/7 --jq .base.sha') rev main ;;
+  *'pulls/7/reviews'*) echo 'https://github.com/o/r/pull/7#pullrequestreview-1' ;;
   *'states: OPEN, first: $count'*) cat <<'JSON'
 {"data":{"repository":{"pullRequests":{"nodes":[
 {"number":7,"title":"Fix login","headRefName":"fix-login","author":{"login":"mira"},"isDraft":false,"updatedAt":"2026-11-01T00:00:00Z","reviewDecision":"APPROVED"},
 {"number":8,"title":"Add search","headRefName":"search","author":{"login":"sam"},"isDraft":true,"updatedAt":"2026-11-02T00:00:00Z","reviewDecision":null}]}}}}
 JSON
   ;;
+  *'states: MERGED, first: $count'*) fill <<JSON
+{"data":{"repository":{"pullRequests":{"nodes":[
+{"number":4,"title":"Old work","headRefName":"old","author":{"login":"sam"},"mergedAt":"2026-11-01T00:00:00Z","mergeCommit":{"oid":"$unfetched"}},
+{"number":5,"title":"Tidy up","headRefName":"tidy","author":{"login":"mira"},"mergedAt":"2026-11-03T00:00:00Z","mergeCommit":{"oid":"@BASE@"}}]}}}}
+JSON
+  ;;
   'api graphql --input -')
-    input=$(cat)
     case "$input" in
-      *mutation*resolveReviewThread*) echo '{"data":{"resolveReviewThread":{"thread":{"isResolved":true}}}}' ;;
-      *) pr=$(cat <<'JSON'
-{"number":7,"title":"Fix login","headRefName":"fix-login","headRefOid":"abc","author":{"login":"mira"},"reviewThreads":{"nodes":[
+      *addPullRequestReviewThreadReply*)
+        case "$input" in
+          *FAIL*) fail 'GraphQL: the reply could not be posted' ;;
+          # T5 is on a review of mine that's pending
+          *'"T5"'*) echo '{"data":{"addPullRequestReviewThreadReply":{"comment":{"state":"PENDING"}}}}' ;;
+          *) echo '{"data":{"addPullRequestReviewThreadReply":{"comment":{"state":"SUBMITTED"}}}}' ;;
+        esac ;;
+      *ResolveReviewThread*|*resolveReviewThread*) echo '{"data":{"thread":{"thread":{"isResolved":true}}}}' ;;
+      *)
+        pr7=$(fill <<'JSON'
+{"number":7,"title":"Fix login","headRefName":"fix-login","headRefOid":"@HEAD7@","author":{"login":"mira"},"reviewThreads":{"nodes":[
 {"id":"T1","isResolved":false,"isOutdated":false,"path":"b.py","line":3,"startLine":null,"originalLine":3,"originalStartLine":null,
- "comments":{"nodes":[{"author":{"login":"me"},"body":"why?","createdAt":"2026-11-01T00:00:00Z","state":"SUBMITTED","originalCommit":{"oid":"abc"}},
-                      {"author":{"login":"mira"},"body":"because\nreasons","createdAt":"2026-11-02T00:00:00Z","state":"SUBMITTED","originalCommit":{"oid":"abc"}}]}},
+ "comments":{"nodes":[{"author":{"login":"me"},"body":"why?","createdAt":"2026-11-01T00:00:00Z","state":"SUBMITTED","originalCommit":{"oid":"@HEAD7@"}},
+                      {"author":{"login":"mira"},"body":"because\nreasons","createdAt":"2026-11-02T00:00:00Z","state":"SUBMITTED","originalCommit":{"oid":"@HEAD7@"}}]}},
 {"id":"T2","isResolved":true,"isOutdated":false,"path":"a.py","line":1,"startLine":null,"originalLine":1,"originalStartLine":null,
- "comments":{"nodes":[{"author":{"login":"sam"},"body":"done","createdAt":"2026-11-01T00:00:00Z","state":"SUBMITTED","originalCommit":{"oid":"abc"}}]}},
+ "comments":{"nodes":[{"author":{"login":"sam"},"body":"done","createdAt":"2026-11-01T00:00:00Z","state":"SUBMITTED","originalCommit":{"oid":"@HEAD7@"}}]}},
 {"id":"T3","isResolved":false,"isOutdated":false,"path":"a.py","line":9,"startLine":null,"originalLine":9,"originalStartLine":null,
- "comments":{"nodes":[{"author":{"login":"me"},"body":"nit","createdAt":"2026-11-01T00:00:00Z","state":"SUBMITTED","originalCommit":{"oid":"abc"}}]}}]}}
+ "comments":{"nodes":[{"author":{"login":"me"},"body":"nit","createdAt":"2026-11-01T00:00:00Z","state":"SUBMITTED","originalCommit":{"oid":"@HEAD7@"}}]}},
+{"id":"T5","isResolved":false,"isOutdated":true,"path":"b.py","line":null,"startLine":null,"originalLine":5,"originalStartLine":null,
+ "comments":{"nodes":[{"author":{"login":"me"},"body":"pending one","createdAt":"2026-11-01T00:00:00Z","state":"PENDING","originalCommit":{"oid":"@BASE@"}}]}}]}}
+JSON
+)
+        pr8=$(fill <<JSON
+{"number":8,"title":"Add search","headRefName":"search","headRefOid":"$unfetched","author":{"login":"sam"},"reviewThreads":{"nodes":[
+{"id":"T6","isResolved":false,"isOutdated":false,"path":"a.py","line":null,"startLine":null,"originalLine":null,"originalStartLine":null,
+ "comments":{"nodes":[{"author":{"login":"sam"},"body":"about this file","createdAt":"2026-11-01T00:00:00Z","state":"SUBMITTED","originalCommit":{"oid":"@BASE@"}}]}},
+{"id":"T7","isResolved":false,"isOutdated":false,"path":"c.py","line":2,"startLine":null,"originalLine":2,"originalStartLine":null,
+ "comments":{"nodes":[{"author":{"login":"me"},"body":"see here","createdAt":"2026-11-01T00:00:00Z","state":"SUBMITTED","originalCommit":{"oid":"$unfetched"}}]}}]}}
 JSON
 )
         case "$input" in
-          *'pullRequests('*) printf '%s\n' '{"data":{"viewer":{"login":"me"},"repository":{"pullRequests":{"nodes":['"$pr"']}}}}' ;;
-          *) printf '%s\n' '{"data":{"viewer":{"login":"me"},"repository":{"pullRequest":'"$pr"'}}}' ;;
-        esac
-      ;;
+          *'pullRequests('*) printf '%s\n' '{"data":{"viewer":{"login":"me"},"repository":{"pullRequests":{"nodes":['"$pr7,$pr8"']}}}}' ;;
+          *'"number":8'*) printf '%s\n' '{"data":{"viewer":{"login":"me"},"repository":{"pullRequest":'"$pr8"'}}}' ;;
+          *) printf '%s\n' '{"data":{"viewer":{"login":"me"},"repository":{"pullRequest":'"$pr7"'}}}' ;;
+        esac ;;
     esac ;;
-  *) echo "fake gh: $*" >&2; exit 1 ;;
+  *) fail "fake gh: no answer for: $*" ;;
 esac

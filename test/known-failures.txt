@@ -45,3 +45,6 @@ dispatch-extras toggle_start_strategy_says_which
 # dispatch-extras: before any run, log raises an error (E117 or E716) and
 # repeat-dispatch starts b:dispatch or :Make, instead of both saying so
 dispatch-extras-before-any-run log_and_repeat_dispatch_say_there_is_none
+
+# gh-extras: a thread on a whole file (no line) is shown as outdated
+gh-extras whole_file_thread_shows_its_path
