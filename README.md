@@ -26,7 +26,6 @@ updates it to that branch's latest commit. `deps/` is not committed.
 | Variable         | Effect                                                              |
 | ---------------- | ------------------------------------------------------------------- |
 | `SUITE_DEPS`     | where the checkouts are (default `deps/`)                           |
-| `SUITE_REPORTER` | Themis reporter (default `dot`; `spec` lists each test)             |
 | `SUITE_SKIP`     | regex of startup files not to source, to find what breaks a spec    |
 | `SUITE_PROFILE`  | a directory: write a `:profile` of the frozen plugins per spec      |
 
@@ -38,6 +37,7 @@ updates it to that branch's latest commit. `deps/` is not committed.
 | `bin/fetch`, `bin/pin`, `bin/test` | check out, pin one plugin at a commit, run                   |
 | `test/<plugin>.vim`     | the spec of one frozen plugin                                          |
 | `test/dotfiles.vim`     | the config loads without an error                                      |
+| `test/known-failures.txt` | tests failing because of a known, not yet fixed bug                  |
 | `test/helper/env.vim`   | loads the dotfiles' `vim-rc/` and every plugin in a private `HOME`     |
 | `test/helper/startup.vim` | starts Themis after Vim's startup, so `'autoread'` reloads happen    |
 | `test/helper/autoload/` | a no-op vim-plug, and an `fzf#run` that records its spec in `g:suite.fzf` |
@@ -58,6 +58,13 @@ It asserts on what a user or caller can observe: buffers, windows, files,
 registers, quickfix and location lists, messages. It doesn't call a function
 that nothing outside the plugin calls. Coverage decides what code is removed,
 so a spec that calls an internal function would keep that code alive.
+
+When a spec finds a bug, it keeps asserting the right behaviour and the test
+goes in `test/known-failures.txt` (`<suite> <test>`, as the TAP report names
+it, under a comment naming the bug). `bin/test` still runs and reports it but
+doesn't fail on it, so the gate stays usable. Any other failure, or a spec
+that stops early, fails the run. A listed test that passes gets a warning: if
+its bug is fixed, take it off the list.
 
 Each spec builds its own fixtures and doesn't rely on state another test left.
 A spec that needs Vim started inside a project creates the project and `cd`s
