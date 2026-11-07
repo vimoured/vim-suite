@@ -129,6 +129,14 @@ function! s:suite.saving_keeps_whitespace_when_the_buffer_says_so() abort
   call assert_equal(['a  ', 'b  '], readfile('f.txt'))
 endfunction
 
+function! s:suite.saving_with_stripping_off_for_the_buffer() abort
+  edit f.txt
+  let b:text_tools_strip_on_save = 0
+  call setline(1, ["a  \r", 'b  '])
+  call assert_equal('', s:run('write'))
+  call assert_equal(["a  \r", 'b  ', ''], readfile('f.txt', 'b'), 'written as it is')
+endfunction
+
 function! s:suite.saving_a_buffer_that_cannot_change() abort
   edit f.txt
   call setline(1, ['a  '])
