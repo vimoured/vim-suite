@@ -22,7 +22,11 @@ function! s:suite.after() abort
 endfunction
 
 function! s:suite.live_preview_falls_back_to_static() abort
-  call assert_true(executable('entr'), 'entr installed: live mode is possible')
+  for l:program in ['glow', 'entr']
+    if !executable(l:program)
+      call themis#helper('assert').skip('TODO: needs ' . l:program . ' installed')
+    endif
+  endfor
   let g:glow_preview_live = 1
   call g:suite.feed('_p')
   call assert_equal(2, winnr('$'))

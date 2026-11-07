@@ -65,6 +65,15 @@ function! s:wait(cond, what) abort
   return 0
 endfunction
 
+" Skips the test as a TODO when a program it runs isn't installed (CI has no
+" glow, entr or tmux: a TODO there; they run where they're installed)
+function! s:needs(...) abort
+  let l:missing = filter(copy(a:000), '!executable(v:val)')
+  if !empty(l:missing)
+    call themis#helper('assert').skip('TODO: needs ' . join(l:missing, ', ') . ' installed')
+  endif
+endfunction
+
 function! s:previews() abort
   return filter(getbufinfo(), 'v:val.name =~# "__glow_preview"')
 endfunction
@@ -72,6 +81,7 @@ endfunction
 " Static
 
 function! s:suite.preview_renders_the_file_beside_it() abort
+  call s:needs('glow')
   call assert_notmatch('E\d\+:', s:type('_p'), 'no error')
   call assert_equal(2, winnr('$'))
   call assert_equal('a.md', bufname('%'), 'the cursor stays in the file')
@@ -84,6 +94,7 @@ function! s:suite.preview_renders_the_file_beside_it() abort
 endfunction
 
 function! s:suite.preview_again_replaces_it() abort
+  call s:needs('glow')
   call s:type('_p')
   call s:type('_p')
   call assert_equal(1, len(s:previews()))
@@ -109,6 +120,7 @@ function! s:suite.toggle_live() abort
 endfunction
 
 function! s:suite.live_preview_in_a_tmux_pane_rerenders_on_save() abort
+  call s:needs('glow', 'entr', 'tmux')
   let g:glow_preview_live = 1
   call assert_notmatch('E\d\+:', s:type('_p'), 'no error')
   call assert_equal(1, winnr('$'), 'no window in Vim')
@@ -123,6 +135,7 @@ function! s:suite.live_preview_in_a_tmux_pane_rerenders_on_save() abort
 endfunction
 
 function! s:suite.live_preview_again_replaces_the_pane() abort
+  call s:needs('glow', 'entr', 'tmux')
   let g:glow_preview_live = 1
   call s:type('_p')
   call s:wait('len(s:panes()) == 2', 'the tmux pane')
@@ -132,6 +145,7 @@ function! s:suite.live_preview_again_replaces_the_pane() abort
 endfunction
 
 function! s:suite.live_preview_without_entr_falls_back_to_static() abort
+  call s:needs('glow')
   let g:glow_preview_live = 1
   let l:bin = s:tmp . '/bin'
   call mkdir(l:bin)
@@ -156,6 +170,7 @@ endfunction
 " Commands
 
 function! s:suite.commands() abort
+  call s:needs('glow')
   GlowPreviewToggleLive
   call assert_equal(1, g:glow_preview_live)
   GlowPreviewToggleLive
