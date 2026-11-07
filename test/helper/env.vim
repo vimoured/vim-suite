@@ -42,6 +42,9 @@ endif
 " A private HOME: no ~/.vim.local, and what plugins save goes under it
 let g:suite.home = resolve(tempname()) . '-home'
 call mkdir(g:suite.home, 'p')
+" What install.sh makes there for Vim ('backupdir', 'directory')
+call mkdir(g:suite.home . '/.vim/backup', 'p')
+call mkdir(g:suite.home . '/.vim/swap', 'p')
 let $HOME = g:suite.home
 let $XDG_STATE_HOME = g:suite.home . '/.local/state'
 let $XDG_CONFIG_HOME = g:suite.home . '/.config'
@@ -49,6 +52,11 @@ let $GIT_CONFIG_NOSYSTEM = '1'
 let $GIT_AUTHOR_NAME = 't' | let $GIT_AUTHOR_EMAIL = 't@t'
 let $GIT_COMMITTER_NAME = 't' | let $GIT_COMMITTER_EMAIL = 't@t'
 let $PATH = g:suite.root . '/test/bin:' . $PATH
+" Outside any terminal multiplexer, whatever runs bin/test: a spec that needs
+" one starts its own (a pane split here would land in your real terminal)
+for s:var in ['TMUX', 'TMUX_PANE', 'TERM_PROGRAM', 'WEZTERM_PANE', 'WEZTERM_UNIX_SOCKET', 'WEZTERM_EXECUTABLE']
+  execute 'unlet $' . s:var
+endfor
 
 execute 'source' fnameescape(g:suite.root . '/test/helper/autoload/plug.vim')
 

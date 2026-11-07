@@ -26,11 +26,15 @@ jobs:
         with:
           repository: vimoured/vim-suite
           ref: main
-      - name: Install Vim
+      - name: Install Vim and the programs the plugins run
         run: |
           sudo apt-get update
-          sudo apt-get install -y vim
+          sudo apt-get install -y vim tmux entr
           vim --version | head -n 1
+          # glow, at the version I use (not packaged by Ubuntu)
+          curl -fsSL https://github.com/charmbracelet/glow/releases/download/v2.1.2/glow_2.1.2_Linux_x86_64.tar.gz |
+            sudo tar -xz -C /usr/local/bin --strip-components=1 glow_2.1.2_Linux_x86_64/glow
+          glow --version
       # For the dotfiles' Python parts (pdbpp reading ~/.pdbrc.py); bin/fetch
       # makes deps/python from it with test/requirements.txt
       - uses: actions/setup-python@v6

@@ -35,3 +35,7 @@ text-tools saving_with_stripping_off_for_the_buffer
 # text-tools: stripping on save is off by default (on only with
 # g:text_tools_strip_on_save = 1, as the dotfiles set it)
 text-tools saving_strips_by_default
+
+# glow-preview: live mode run again opens another tmux pane instead of
+# replacing the previous one
+glow-preview live_preview_again_replaces_the_pane
