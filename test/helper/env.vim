@@ -75,11 +75,12 @@ function! s:source(file) abort
   endtry
 endfunction
 
-" Vim's startup order: vimrc, plugin/ in runtimepath order, then after/plugin/
+" Vim's startup order: vimrc, plugin/ in runtimepath order (the plugins, then
+" Vim's own, e.g. netrw where it isn't a package yet), then after/plugin/
 let $MYVIMRC = g:suite.vimrc . '/.vimrc'
 call s:source($MYVIMRC)
 filetype plugin on
-for s:dir in s:dirs
+for s:dir in s:dirs + [$VIMRUNTIME]
   for s:file in glob(s:dir . '/plugin/**/*.vim', 1, 1)
     call s:source(s:file)
   endfor

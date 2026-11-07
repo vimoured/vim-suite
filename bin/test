@@ -17,13 +17,16 @@ export SUITE_DEPS PATH LC_ALL THEMIS_HOME
 known=$root/test/known-failures.txt
 raw=$(mktemp)
 report=$(mktemp)
-trap 'rm -f "$raw" "$report"' EXIT
+vimout=$(mktemp)
+trap 'rm -f "$raw" "$report" "$vimout"' EXIT
 
 # A spec's Vim: Themis started by test/helper/startup.vim (see there why not
-# by vim-themis' bin/themis). Its TAP report goes to stdout.
+# by vim-themis' bin/themis). Its TAP report (Vim's stderr) goes to stdout.
+# Vim's own output goes to a file, shown when the spec fails: with it on
+# /dev/null, the fugitive-extras spec ended after 3 of its 13 tests.
 themis() {
   vim -u NONE -i NONE -n -N -e -s -c "source $root/test/helper/startup.vim" \
-    -- --reporter tap "$@" 3>&1 1>&2 2>&3 3>&-
+    -- --reporter tap "$@" 2>&1 >"$vimout"
 }
 
 # Whether "<suite> <test>" is in test/known-failures.txt
@@ -59,13 +62,20 @@ for spec do
   ran=$(grep -c '^\(not \)\{0,1\}ok [0-9]' "$report")
   unlisted=$(sed -n 's/^not ok [0-9]* - //p' "$report" |
     while IFS= read -r t; do listed "$t" || echo "$t"; done)
-  knownfailed="$knownfailed$(sed -n 's/^not ok [0-9]* - //p' "$report" |
-    while IFS= read -r t; do listed "$t" && printf '\n  %s' "$t"; done)"
+  specknown=$(sed -n 's/^not ok [0-9]* - //p' "$report" |
+    while IFS= read -r t; do listed "$t" && printf '\n  %s' "$t"; done)
+  knownfailed="$knownfailed$specknown"
   fixed="$fixed$(sed -n 's/^ok [0-9]* - //p' "$report" |
     while IFS= read -r t; do listed "$t" && printf '\n  %s' "$t"; done)"
-  # Failed outside the list, or stopped before running all its tests
-  if [ -n "$unlisted" ] || { [ "$status" -ne 0 ] && [ "$ran" != "${plan:-x}" ]; }; then
+  # Failed outside the list, or stopped before running all its tests (which
+  # Vim can do with exit status 0)
+  if [ -n "$unlisted" ] || [ "$ran" != "${plan:-x}" ] ||
+    { [ "$status" -ne 0 ] && [ -z "$specknown" ]; }; then
     failed="$failed $name"
+    if [ -s "$vimout" ]; then
+      echo "# Vim's output:"
+      tr -d '\r' <"$vimout" | sed 's/^/#   /'
+    fi
   fi
 done
 for name in ${live:-}; do
