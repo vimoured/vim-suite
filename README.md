@@ -85,8 +85,16 @@ jobs:
 ```
 
 It runs `bin/fetch`, then `bin/pin` to put that plugin at the pull request's
-head commit, then `bin/test`. The `vim-suite / suite` check must pass before
-the pull request merges. All the repositories are public, so it uses no token.
+head commit, then `bin/test`. All the repositories are public, so it uses no
+token.
+
+Each plugin's repository has a ruleset made from `ruleset.json`: on the
+default branch, a pull request and the `vim-suite / suite` check are
+required, and force-pushes and deletion are blocked, with no bypass:
+
+```sh
+gh api -X POST repos/vimoured/<plugin>/rulesets --input ruleset.json
+```
 
 Pushes to this repository run nothing. Check changes locally with `bin/test`
 before pushing them; to run CI by hand, against every plugin's `main`, use
