@@ -1,0 +1,5 @@
+# Python packages the dotfiles' Python parts need, installed by bin/fetch into
+# deps/python (a venv): pdbpp reads ~/.pdbrc.py, which needs rich. Pinned to
+# the versions the suite was checked with, on Python 3.14.
+pdbpp==0.12.1
+rich==15.0.0

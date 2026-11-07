@@ -31,7 +31,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y vim
           vim --version | head -n 1
+      # For the dotfiles' Python parts (pdbpp reading ~/.pdbrc.py); bin/fetch
+      # makes deps/python from it with test/requirements.txt
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
       - name: Fetch the plugins and dotfiles
+        env:
+          SUITE_PYTHON: python
         run: bin/fetch
       - name: Check out the pull request's plugin
         if: github.event_name == 'pull_request'

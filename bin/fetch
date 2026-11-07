@@ -2,6 +2,8 @@
 # Checks out every repository in plugins.txt into $SUITE_DEPS (default deps/):
 # a shallow clone of its default branch, or, when already there, an update to
 # that branch's latest commit. All the repositories are public; no token.
+# Then makes $SUITE_DEPS/python, a venv with test/requirements.txt, from
+# $SUITE_PYTHON (default python3; the suite is checked with 3.14).
 #
 #   bin/fetch
 set -e
@@ -21,3 +23,12 @@ grep -v '^[[:space:]]*\(#\|$\)' "$root/plugins.txt" | while read -r name repo ro
     git clone --quiet --depth 1 "$url" "$dir"
   fi
 done
+
+venv=$SUITE_DEPS/python
+if [ ! -x "$venv/bin/python" ]; then
+  echo "venv   python ($("${SUITE_PYTHON:-python3}" --version))"
+  "${SUITE_PYTHON:-python3}" -m venv "$venv"
+else
+  echo "update python"
+fi
+"$venv/bin/python" -m pip install --quiet --disable-pip-version-check -r "$root/test/requirements.txt"
