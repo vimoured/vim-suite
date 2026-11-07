@@ -1,7 +1,16 @@
 name: suite
 
+# Called by each plugin's own .github/workflows/suite.yml on pull_request:
+#
+#   on: pull_request
+#   jobs:
+#     vim-suite:
+#       uses: vimoured/vim-suite/.github/workflows/suite.yml@main
+#
+# The whole suite runs with that plugin at the pull request's head commit and
+# every other repository at main. Or run it by hand, everything at main.
 on:
-  push:
+  workflow_call:
   workflow_dispatch:
 
 permissions:
@@ -11,7 +20,12 @@ jobs:
   suite:
     runs-on: ubuntu-latest
     steps:
+      # When called, github.* describes the plugin's pull request, so name
+      # this repository explicitly
       - uses: actions/checkout@v5
+        with:
+          repository: vimoured/vim-suite
+          ref: main
       - name: Install Vim
         run: |
           sudo apt-get update
@@ -19,5 +33,11 @@ jobs:
           vim --version | head -n 1
       - name: Fetch the plugins and dotfiles
         run: bin/fetch
+      - name: Check out the pull request's plugin
+        if: github.event_name == 'pull_request'
+        env:
+          NAME: ${{ github.event.repository.name }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: bin/pin "$NAME" "$SHA"
       - name: Run the suite
         run: bin/test

@@ -35,7 +35,7 @@ updates it to that branch's latest commit. `deps/` is not committed.
 | Path                    | What                                                                   |
 | ----------------------- | ---------------------------------------------------------------------- |
 | `plugins.txt`           | every repository checked out, with its role (config, runner, upstream, frozen, live) |
-| `bin/fetch`, `bin/test` | check out, run                                                         |
+| `bin/fetch`, `bin/pin`, `bin/test` | check out, pin one plugin at a commit, run                   |
 | `test/<plugin>.vim`     | the spec of one frozen plugin                                          |
 | `test/dotfiles.vim`     | the config loads without an error                                      |
 | `test/helper/env.vim`   | loads the dotfiles' `vim-rc/` and every plugin in a private `HOME`     |
@@ -66,6 +66,27 @@ into it before sourcing `env.vim`, because project-detect looks only once, at
 
 ## CI
 
-`.github/workflows/suite.yml` runs `bin/fetch` and `bin/test` on every push to
-this repository and on demand, against every plugin's `main`. All the
-repositories are public, so it uses no token.
+The suite gates every plugin's pull requests. Each plugin calls the reusable
+workflow `.github/workflows/suite.yml` from its own:
+
+```yaml
+# .github/workflows/suite.yml in the plugin
+on: pull_request
+jobs:
+  vim-suite:
+    uses: vimoured/vim-suite/.github/workflows/suite.yml@main
+```
+
+It runs `bin/fetch`, then `bin/pin` to put that plugin at the pull request's
+head commit, then `bin/test`. The `vim-suite / suite` check must pass before
+the pull request merges. All the repositories are public, so it uses no token.
+
+Pushes to this repository run nothing. Check changes locally with `bin/test`
+before pushing them; to run CI by hand, against every plugin's `main`, use
+*Run workflow* on the Actions tab.
+
+To test a plugin commit locally the way CI does:
+
+```sh
+bin/fetch && bin/pin buffer-tools <commit> && bin/test
+```

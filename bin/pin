@@ -1,0 +1,21 @@
+#!/bin/sh
+# Checks out one plugin in $SUITE_DEPS (default deps/) at a given commit, after
+# bin/fetch: how a plugin's pull request is tested against everything else at
+# main.
+#
+#   bin/pin buffer-tools 1a2b3c4...
+set -e
+root=$(cd "$(dirname "$0")/.." && pwd)
+SUITE_DEPS=${SUITE_DEPS:-$root/deps}
+name=$1 sha=$2
+if [ -z "$name" ] || [ -z "$sha" ]; then
+  echo "usage: bin/pin <name> <commit>" >&2
+  exit 2
+fi
+if ! awk -v n="$name" '$1 == n { found = 1 } END { exit !found }' "$root/plugins.txt"; then
+  echo "bin/pin: $name is not in plugins.txt" >&2
+  exit 1
+fi
+git -C "$SUITE_DEPS/$name" fetch --quiet --depth 1 origin "$sha"
+git -C "$SUITE_DEPS/$name" checkout --quiet --detach FETCH_HEAD
+echo "pinned $name at $(git -C "$SUITE_DEPS/$name" rev-parse --short HEAD)"
