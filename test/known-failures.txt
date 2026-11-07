@@ -39,3 +39,9 @@ text-tools saving_strips_by_default
 # glow-preview: live mode run again opens another tmux pane instead of
 # replacing the previous one
 glow-preview live_preview_again_replaces_the_pane
+
+# dispatch-extras: the start-strategy toggle says "startegy"
+dispatch-extras toggle_start_strategy_says_which
+# dispatch-extras: before any run, log raises an error (E117 or E716) and
+# repeat-dispatch starts b:dispatch or :Make, instead of both saying so
+dispatch-extras-before-any-run log_and_repeat_dispatch_say_there_is_none
