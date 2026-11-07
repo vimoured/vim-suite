@@ -22,7 +22,7 @@ vim-lists         roumail/vim-lists          frozen
 vim-review        roumail/vim-review         frozen
 vim-draft         roumail/vim-draft          frozen
 buffer-tools      vimoured/buffer-tools      frozen
-text-tools        roumail/text-tools         frozen
+text-tools        vimoured/text-tools        frozen
 glow-preview      roumail/glow-preview       frozen
 qf-tools          roumail/qf-tools           frozen
 dispatch-extras   roumail/dispatch-extras    frozen
