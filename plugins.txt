@@ -21,7 +21,7 @@ vim-place         roumail/vim-place          frozen
 vim-lists         roumail/vim-lists          frozen
 vim-review        roumail/vim-review         frozen
 vim-draft         roumail/vim-draft          frozen
-buffer-tools      roumail/buffer-tools       frozen
+buffer-tools      vimoured/buffer-tools      frozen
 text-tools        roumail/text-tools         frozen
 glow-preview      roumail/glow-preview       frozen
 qf-tools          roumail/qf-tools           frozen
