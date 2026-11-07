@@ -32,3 +32,6 @@ text-tools fold_marker_commands_without_markers
 # text-tools: no per-buffer switch turns off all stripping on save
 # (b:text_tools_strip_on_save = 0); \r endings are stripped regardless
 text-tools saving_with_stripping_off_for_the_buffer
+# text-tools: stripping on save is off by default (on only with
+# g:text_tools_strip_on_save = 1, as the dotfiles set it)
+text-tools saving_strips_by_default

@@ -1,6 +1,7 @@
-" text-tools: what the dotfiles use of it (g:text_tools_strip_on_save = 1, so
-" every write strips; .pdbrc.py names the Normalize commands) and its README:
-" the commands, and stripping on save.
+" text-tools: what the dotfiles use of it (every write strips; .pdbrc.py names
+" the Normalize commands) and its README: the commands, and stripping on save,
+" on by default, off everywhere with g:text_tools_strip_on_save = 0 or in one
+" buffer with b:text_tools_strip_on_save = 0.
 let g:suite_spec = expand('<sfile>')
 execute 'source' fnameescape(expand('<sfile>:p:h') . '/helper/env.vim')
 let s:suite = themis#suite('text-tools')
@@ -108,10 +109,38 @@ function! s:suite.strip_trailing_cr() abort
   call assert_equal(['a', 'b', 'c'], getline(1, '$'))
 endfunction
 
-" On save (the dotfiles set g:text_tools_strip_on_save)
+" On save
 
-function! s:suite.dotfiles_strip_on_save() abort
-  call assert_equal(1, get(g:, 'text_tools_strip_on_save', 0), 'set by the dotfiles')
+" Runs a:cmd with g:text_tools_strip_on_save as a:value (unset for v:null),
+" restoring the dotfiles' setting after
+function! s:with_global(value, cmd) abort
+  let l:saved = get(g:, 'text_tools_strip_on_save', v:null)
+  try
+    unlet! g:text_tools_strip_on_save
+    if a:value isnot v:null
+      let g:text_tools_strip_on_save = a:value
+    endif
+    return s:run(a:cmd)
+  finally
+    unlet! g:text_tools_strip_on_save
+    if l:saved isnot v:null
+      let g:text_tools_strip_on_save = l:saved
+    endif
+  endtry
+endfunction
+
+function! s:suite.saving_strips_by_default() abort
+  edit f.txt
+  call setline(1, ["a  \r", 'b  '])
+  call assert_equal('', s:with_global(v:null, 'write'))
+  call assert_equal(['a', 'b', ''], readfile('f.txt', 'b'))
+endfunction
+
+function! s:suite.saving_with_stripping_off_everywhere() abort
+  edit f.txt
+  call setline(1, ["a  \r", 'b  '])
+  call assert_equal('', s:with_global(0, 'write'))
+  call assert_equal(["a  \r", 'b  ', ''], readfile('f.txt', 'b'), 'written as it is')
 endfunction
 
 function! s:suite.saving_strips_cr_and_trailing_whitespace() abort
