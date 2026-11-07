@@ -34,7 +34,7 @@ updates it to that branch's latest commit. `deps/` is not committed.
 | Path                    | What                                                                   |
 | ----------------------- | ---------------------------------------------------------------------- |
 | `plugins.txt`           | every repository checked out, with its role (config, runner, upstream, frozen, live) |
-| `bin/fetch`, `bin/pin`, `bin/test` | check out, pin one plugin at a commit, run                   |
+| `bin/fetch`, `bin/pin`, `bin/test`, `bin/coverage` | check out, pin one plugin at a commit, run, list lines never run |
 | `test/<plugin>.vim`     | the spec of one frozen plugin                                          |
 | `test/dotfiles.vim`     | the config loads without an error                                      |
 | `test/known-failures.txt` | tests failing because of a known, not yet fixed bug                  |
@@ -65,6 +65,17 @@ it, under a comment naming the bug). `bin/test` still runs and reports it but
 doesn't fail on it, so the gate stays usable. Any other failure, or a spec
 that stops early, fails the run. A listed test that passes gets a warning: if
 its bug is fixed, take it off the list.
+
+### Coverage
+
+`bin/coverage [plugin...]` runs the suite under Vim's `:profile` and lists the
+frozen plugins' lines that never ran: the code no spec reaches, which is
+what gets cut. Vim records only when a line runs, so an autocmd body, a
+mapping's right-hand side or a command body written outside a function counts
+as run once it's defined; those lines are listed apart, as not measured.
+Check them, and any new spec, by breaking the feature in `deps/<plugin>` and
+seeing a test that counts fail (a known failure guards nothing), then
+`git -C deps/<plugin> checkout -- .`.
 
 Each spec builds its own fixtures and doesn't rely on state another test left.
 A spec that needs Vim started inside a project creates the project and `cd`s

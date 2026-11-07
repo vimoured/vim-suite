@@ -1,0 +1,217 @@
+#!/usr/bin/env python3
+"""Which lines of the frozen plugins the suite never runs.
+
+    bin/coverage                   every frozen plugin
+    bin/coverage buffer-tools      the ones named
+
+Runs bin/test with SUITE_PROFILE, so Vim's :profile records each frozen
+plugin's files, and reads the .prof files it writes (one per spec, summed):
+
+- A SCRIPT section has one row per line of the file, with a count for the
+  lines run while the file was sourced.
+- A FUNCTION section says where the function is defined (path:line) and has
+  one row per line of its body, a line and its \\ continuations joined, with a
+  count for the lines run. A function never called is "Called 0 times"; a
+  file never sourced has no sections, so all of it counts as not run.
+
+Lines that are blank, comments or \\ continuations aren't counted. Code that
+runs later than its line (autocmd bodies, mapping right-hand sides, command
+bodies outside functions) is recorded only as defined: it's listed separately,
+as not measured. Mutation-check it instead (see the README).
+"""
+import os
+import re
+import subprocess
+import sys
+import tempfile
+
+ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+DEPS = os.path.realpath(os.environ.get('SUITE_DEPS') or os.path.join(ROOT, 'deps'))
+DEFERRED = re.compile(r'^\s*(au(tocmd)?!?\s|[nvxsoilct]?(nore)?map\s|[nvxsoilct]?no(remap)?\s|com(mand)?!?\s)')
+
+
+def frozen():
+    names = []
+    with open(os.path.join(ROOT, 'plugins.txt')) as f:
+        for line in f:
+            fields = line.split()
+            if len(fields) >= 3 and not fields[0].startswith('#') and fields[2] == 'frozen':
+                names.append(fields[0])
+    return names
+
+
+def is_continuation(line):
+    s = line.lstrip()
+    return s.startswith('\\') or s.startswith('"\\ ')
+
+
+def is_code(line):
+    s = line.strip()
+    return bool(s) and not s.startswith('"') and not is_continuation(line)
+
+
+def parse(path, scripts, functions):
+    """Adds a .prof file's counts: scripts[file] = {line: count},
+    functions[(file, line)] = [count or None per body row]."""
+    with open(path, encoding='utf-8', errors='replace') as f:
+        lines = f.read().splitlines()
+    i = 0
+    while i < len(lines):
+        head = lines[i]
+        if head.startswith('SCRIPT  '):
+            file = os.path.realpath(head[8:].strip())
+            i = rows_start(lines, i)
+            counts = scripts.setdefault(file, {})
+            n = 0
+            while i < len(lines) and not section_start(lines[i]):
+                n += 1
+                c = row_count(lines[i])
+                if c is not None:
+                    counts[n] = counts.get(n, 0) + c
+                i += 1
+        elif head.startswith('FUNCTION  '):
+            defined = lines[i + 1].strip()
+            m = re.match(r'Defined: (.*):(\d+)$', defined)
+            i = rows_start(lines, i)
+            rows = []
+            column = None
+            while i < len(lines) and not section_start(lines[i]):
+                column = column or text_column(lines[i])
+                rows.append((row_count(lines[i]), lines[i]))
+                i += 1
+            rows = [(c, row[column or 0:].strip()) for c, row in rows]
+            if m:
+                key = (os.path.realpath(m.group(1)), int(m.group(2)))
+                old = functions.get(key)
+                if old is None:
+                    functions[key] = rows
+                else:
+                    functions[key] = [(add(a[0], b[0]), a[1]) for a, b in zip(old, rows)]
+        else:
+            i += 1
+
+
+def add(a, b):
+    return None if a is None and b is None else (a or 0) + (b or 0)
+
+
+def section_start(line):
+    return line.startswith(('SCRIPT  ', 'FUNCTION  ', 'FUNCTIONS SORTED'))
+
+
+def rows_start(lines, i):
+    """The index of the first row after a section's 'count  total (s)' line."""
+    while not lines[i].startswith('count'):
+        i += 1
+    return i + 1
+
+
+def text_column(row):
+    """Where the source text starts in a section's rows: one space after the
+    timing fields of a row that has them, None for a row without."""
+    m = re.match(r'^\s*\d+(\s+\d+\.\d+){1,2}', row)
+    return m.end() + 1 if m else None
+
+
+def row_count(row):
+    field = row[:5].strip()
+    return int(field) if field.isdigit() else None
+
+
+def coverage(file, scripts, functions):
+    """(not_run, deferred, code_lines) for one plugin file: lists of line
+    numbers, 1-based."""
+    with open(file, encoding='utf-8', errors='replace') as f:
+        text = f.read().splitlines()
+    sourced = file in scripts
+    counts = scripts.get(file, {})
+    run = {}
+    # Function bodies: rows are logical lines (a line and its continuations)
+    body = set()
+    i = 0
+    while i < len(text):
+        if re.match(r'^\s*fu(nction)?!?\s', text[i]):
+            start = i + 1  # 1-based line of the function line
+            j = i + 1
+            groups = []
+            while j < len(text) and not re.match(r'^\s*endf(unction)?\b', text[j]):
+                group = [j + 1]
+                j += 1
+                while j < len(text) and is_continuation(text[j]):
+                    group.append(j + 1)
+                    j += 1
+                groups.append(group)
+            rows = functions.get((file, start))
+            for k, group in enumerate(groups):
+                c = rows[k][0] if rows is not None and k < len(rows) else None
+                # The row must be the line it's counted for
+                if rows is not None and k < len(rows):
+                    want = text[group[0] - 1].strip()[:30]
+                    if not rows[k][1].startswith(want):
+                        print('bin/coverage: %s:%d profiled as %r' % (file, group[0], rows[k][1][:30]),
+                              file=sys.stderr)
+                for n in group:
+                    body.add(n)
+                    run[n] = bool(c)
+            if j < len(text):
+                body.add(j + 1)  # endfunction
+            i = j + 1
+        else:
+            i += 1
+    not_run, deferred, code = [], [], []
+    for n, line in enumerate(text, 1):
+        if not is_code(line) or re.match(r'^\s*endf(unction)?\b', line) and n in body:
+            continue
+        code.append(n)
+        if n in body:
+            ok = run.get(n, False)
+        else:
+            ok = sourced and counts.get(n, 0) > 0
+            if ok and DEFERRED.match(line):
+                deferred.append(n)
+        if not ok:
+            not_run.append(n)
+    return not_run, deferred, code, text
+
+
+def main(args):
+    names = args or frozen()
+    with tempfile.TemporaryDirectory() as prof:
+        env = dict(os.environ, SUITE_PROFILE=prof)
+        test = subprocess.run([os.path.join(ROOT, 'bin', 'test')], env=env,
+                              stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                              stderr=subprocess.STDOUT, text=True)
+        if test.returncode != 0:
+            print('bin/test failed; coverage is of what ran:')
+            print('\n'.join(l for l in test.stdout.splitlines() if l.startswith(('failed', 'not ok'))))
+        scripts, functions = {}, {}
+        for name in sorted(os.listdir(prof)):
+            if name.endswith('.prof'):
+                parse(os.path.join(prof, name), scripts, functions)
+    for name in names:
+        top = os.path.join(DEPS, name)
+        files = sorted(os.path.realpath(os.path.join(d, f))
+                       for d, dirs, fs in os.walk(top)
+                       if not os.path.relpath(d, top).startswith(('test', '.git'))
+                       for f in fs if f.endswith('.vim'))
+        total = missed = 0
+        report, later = [], []
+        for file in files:
+            not_run, deferred, code, text = coverage(file, scripts, functions)
+            rel = os.path.relpath(file, os.path.realpath(top))
+            total += len(code)
+            missed += len(not_run)
+            report += ['  %s:%d  %s' % (rel, n, text[n - 1].strip()) for n in not_run]
+            later += ['  %s:%d  %s' % (rel, n, text[n - 1].strip()) for n in deferred]
+        print('%s: %d of %d lines run' % (name, total - missed, total))
+        if report:
+            print('not run:')
+            print('\n'.join(report))
+        if later:
+            print('run later, not measured (autocmd, mapping, command bodies):')
+            print('\n'.join(later))
+        print()
+
+
+if __name__ == '__main__':
+    main(sys.argv[1:])
