@@ -26,11 +26,16 @@ jobs:
         with:
           repository: vimoured/vim-suite
           ref: main
-      - name: Install Vim
+      # rg and fd for fzf-utils, which defines its searches only when they're
+      # installed. Ubuntu's fd is fdfind: fd is linked to it
+      - name: Install Vim, ripgrep and fd
         run: |
           sudo apt-get update
-          sudo apt-get install -y vim
+          sudo apt-get install -y vim ripgrep fd-find
+          sudo ln -sf "$(command -v fdfind)" /usr/local/bin/fd
           vim --version | head -n 1
+          rg --version | head -n 1
+          fd --version
       # For the dotfiles' Python parts (pdbpp reading ~/.pdbrc.py); bin/fetch
       # makes deps/python from it with test/requirements.txt
       - uses: actions/setup-python@v6
