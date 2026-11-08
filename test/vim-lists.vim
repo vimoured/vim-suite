@@ -1,4 +1,6 @@
-" vim-lists: what the dotfiles use of it. Ported from its test/run.vim.
+" vim-lists: roumail_lists#open() and the functions plugins call from their
+" lists' keys (gh-extras, fugitive-extras, vim-prompts), the keys every list
+" has, and its README.
 let g:suite_spec = expand('<sfile>')
 execute 'source' fnameescape(expand('<sfile>:p:h') . '/helper/env.vim')
 let s:suite = themis#suite('vim-lists')
@@ -37,6 +39,7 @@ function! s:suite.open() abort
   call assert_equal('nofile', &buftype)
   call assert_equal(4, winheight(0))
   call assert_equal(2, winnr('$'), 'a window of its own')
+  call assert_equal(winnr('$'), winnr(), 'at the bottom')
 endfunction
 
 function! s:suite.items_and_keys() abort
@@ -50,12 +53,53 @@ function! s:suite.items_and_keys() abort
   call assert_equal('', maparg(':Cmd', 'n'), 'a hint only maps nothing')
 endfunction
 
+" A plugin's key asking outside a list: nothing
+function! s:suite.outside_a_list() abort
+  edit plain.txt
+  call assert_equal([{}, {}], [roumail_lists#row(), roumail_lists#item()])
+endfunction
+
+" As tall as the list, up to 15 lines
+function! s:suite.height() abort
+  let g:words = map(range(30), '"w" . v:val')
+  call s:open()
+  call assert_equal(15, winheight(0))
+endfunction
+
+function! s:suite.colon_q_closes_only_the_list() abort
+  call s:open()
+  quit
+  call assert_equal(1, winnr('$'))
+  call assert_false(bufexists('test://words'))
+endfunction
+
+" Fuzzy, as fzf: each word's letters in order, not necessarily together; all
+" the words
+function! s:suite.filter_fuzzily() abort
+  let g:words = ['banana', 'bandana', 'cabin']
+  call s:open()
+  call feedkeys("/bnn\<CR>", 'x')
+  call assert_equal(['banana', 'bandana'], getline(2, '$'))
+  call feedkeys("/\<C-u>bn d\<CR>", 'x')
+  call assert_equal(['bandana'], getline(2, '$'))
+  call assert_match('^Words (3), 1 matching ''bn d''  ', getline(1))
+  " <C-u>, then <CR>: unfiltered
+  call feedkeys("/\<C-u>\<CR>", 'x')
+  call assert_equal(['Words (3)', 4], [matchstr(getline(1), '^Words (3)'), line('$')])
+  call assert_notmatch('matching', getline(1))
+endfunction
+
 function! s:suite.group_rows() abort
   call s:open(1)
   call assert_equal(3, line('.'), 'on the first item, past the group row')
   call cursor(2, 1)
   call assert_equal({}, roumail_lists#item())
   call assert_equal('fruit', roumail_lists#row().group)
+  " No items: the line after the heading
+  let g:words = []
+  normal q
+  call s:open(1)
+  call assert_equal(2, line('.'))
 endfunction
 
 function! s:suite.refresh_keeps_item() abort
