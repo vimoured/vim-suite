@@ -27,7 +27,7 @@ glow-preview      vimoured/glow-preview      frozen
 qf-tools          vimoured/qf-tools          frozen
 dispatch-extras   vimoured/dispatch-extras   frozen
 fzf-utils         vimoured/fzf-utils         frozen
-pytest.vim        roumail/pytest.vim         frozen
+pytest.vim        vimoured/pytest.vim        frozen
 fugitive-extras   vimoured/fugitive-extras   frozen
 gh-extras         vimoured/gh-extras         frozen
 vim-prompts       roumail/vim-prompts        live
