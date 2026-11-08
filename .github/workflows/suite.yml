@@ -8,7 +8,10 @@ name: suite
 #       uses: vimoured/vim-suite/.github/workflows/suite.yml@main
 #
 # The whole suite runs with that plugin at the pull request's head commit and
-# every other repository at main. Or run it by hand, everything at main.
+# every other repository at main, then the smoke test (smoke.yml, bin/smoke)
+# with that plugin at that commit. The dotfiles call it on every push to main,
+# with the dotfiles at the pushed commit. Or run it by hand, everything at
+# main.
 on:
   workflow_call:
   workflow_dispatch:
@@ -54,11 +57,24 @@ jobs:
           github.event_name != 'pull_request' ||
           contains(fromJSON('["pytest.vim", "project-detect"]'), github.event.repository.name)
         run: deps/python/bin/python -m pip install --quiet -r test/requirements-pytest.txt
-      - name: Check out the pull request's plugin
-        if: github.event_name == 'pull_request'
+      # A plugin's pull request, or a push to the dotfiles
+      - name: Check out the commit under test
+        if: github.event_name == 'pull_request' || github.event_name == 'push'
         env:
           NAME: ${{ github.event.repository.name }}
-          SHA: ${{ github.event.pull_request.head.sha }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: bin/pin "$NAME" "$SHA"
       - name: Run the suite
         run: bin/test
+      # The dotfiles in deps/ (at the pushed commit, for a push), every plugin
+      # they Plug at main, the pull request's at its commit
+      - name: Smoke test
+        env:
+          NAME: ${{ github.event.repository.name }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ -n "$SHA" ]; then
+            bin/smoke deps/dotfiles "$NAME" "$SHA"
+          else
+            bin/smoke deps/dotfiles
+          fi

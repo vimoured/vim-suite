@@ -5,9 +5,13 @@
 #
 #   bin/smoke                  the dotfiles in $SUITE_DEPS (deps/dotfiles)
 #   bin/smoke path/to/dotfiles another checkout
+#   bin/smoke path/to/dotfiles qf-tools 1a2b3c4...
+#                              with that plugin at that commit (as bin/pin)
 set -e
 root=$(cd "$(dirname "$0")/.." && pwd)
 SUITE_DEPS=${SUITE_DEPS:-$root/deps}
 dots=$(cd "${1:-$SUITE_DEPS/dotfiles}" && pwd)
+SMOKE_PIN=${2:+$2 $3}
+export SMOKE_PIN
 docker build -q -t vim-suite-smoke "$root/smoke" >/dev/null
-docker run --rm -v "$dots:/dotfiles:ro" vim-suite-smoke
+docker run --rm -e SMOKE_PIN -v "$dots:/dotfiles:ro" vim-suite-smoke

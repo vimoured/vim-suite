@@ -96,8 +96,13 @@ jobs:
 ```
 
 It runs `bin/fetch`, then `bin/pin` to put that plugin at the pull request's
-head commit, then `bin/test`. All the repositories are public, so it uses no
-token.
+head commit, then `bin/test`, then the smoke test (below) with that plugin at
+that commit. All the repositories are public, so it uses no token.
+
+The dotfiles call the same workflow on every push to `main`
+(`.github/workflows/vim-suite.yml` there, `on: push`): `bin/pin` puts the
+dotfiles at the pushed commit, and the suite and the smoke test run against
+it. That only reports: the dotfiles have no ruleset.
 
 Each plugin's repository has a ruleset made from `ruleset.json`: on the
 default branch, a pull request and the `vim-suite / suite` check are
@@ -112,9 +117,11 @@ gh api -X POST repos/vimoured/<plugin>/rulesets --input ruleset.json
 `bin/smoke` (needs Docker) checks the dotfiles as a whole: a lean Linux image
 (`smoke/`), the dotfiles' Vim config linked as `install.sh` links it, every
 plugin they `Plug` installed with `:PlugInstall`, then a real Vim started on a
-terminal; it fails on any startup error or plugin that didn't install. On
-GitHub, the *smoke* workflow runs it by hand, for a dotfiles branch, tag or
-commit (default `main`).
+terminal; it fails on any startup error or plugin that didn't install.
+`bin/smoke <dotfiles-dir> <plugin> <commit>` checks that plugin out at that
+commit once installed, as the gate does. On GitHub it's the last step of
+`suite.yml`; the *smoke* workflow runs it alone by hand, for a dotfiles
+branch, tag or commit (default `main`).
 
 Pushes to this repository run nothing. Check changes locally with `bin/test`
 before pushing them; to run CI by hand, against every plugin's `main`, use

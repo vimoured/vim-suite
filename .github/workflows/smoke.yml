@@ -2,7 +2,8 @@ name: smoke
 
 # The smoke test (bin/smoke): the dotfiles' Vim config with every plugin they
 # Plug, in a lean Linux image, started on a terminal; fails on any startup
-# error. By hand for now; later the second step after suite.yml.
+# error. By hand, for any dotfiles commit; the gate (suite.yml) runs it after
+# the suite.
 on:
   workflow_dispatch:
     inputs:
