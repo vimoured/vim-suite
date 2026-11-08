@@ -99,10 +99,18 @@ It runs `bin/fetch`, then `bin/pin` to put that plugin at the pull request's
 head commit, then `bin/test`, then the smoke test (below) with that plugin at
 that commit. All the repositories are public, so it uses no token.
 
-The dotfiles call the same workflow on every push to `main`
-(`.github/workflows/vim-suite.yml` there, `on: push`): `bin/pin` puts the
-dotfiles at the pushed commit, and the suite and the smoke test run against
-it. That only reports: the dotfiles have no ruleset.
+The dotfiles call the same workflow from their pull requests
+(`.github/workflows/vim-suite.yml` there), when one changes what the suite
+reads: `vim-rc/`, `chkpyt.sh`, `.pdbrc.py`, or that workflow. `bin/pin` puts
+the dotfiles at the pull request's commit, and the suite and the smoke test
+run against it. A job there, `gate`, always reports: it passes when the suite
+passed or had nothing to run for. Their ruleset, `ruleset-dotfiles.json`, is
+`ruleset.json` requiring `gate` instead (a skipped suite never reports
+`vim-suite / suite`, which would leave the pull request waiting):
+
+```sh
+gh api -X POST repos/roumail/dotfiles/rulesets --input ruleset-dotfiles.json
+```
 
 Each plugin's repository has a ruleset made from `ruleset.json`: on the
 default branch, a pull request and the `vim-suite / suite` check are

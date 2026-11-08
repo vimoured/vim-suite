@@ -9,9 +9,9 @@ name: suite
 #
 # The whole suite runs with that plugin at the pull request's head commit and
 # every other repository at main, then the smoke test (smoke.yml, bin/smoke)
-# with that plugin at that commit. The dotfiles call it on every push to main,
-# with the dotfiles at the pushed commit. Or run it by hand, everything at
-# main.
+# with that plugin at that commit. The dotfiles call it the same way, for a
+# pull request that changes what the suite reads of them (their
+# .github/workflows/vim-suite.yml). Or run it by hand, everything at main.
 on:
   workflow_call:
   workflow_dispatch:
@@ -50,30 +50,31 @@ jobs:
           SUITE_PYTEST: 0
         run: bin/fetch
       # Real pytest runs (pytest.vim's spec, through the dotfiles' chkpyt.sh)
-      # only for a Python-related change: a pull request of pytest.vim or
-      # project-detect, or a run by hand. Elsewhere those tests are TODO skips
+      # only for a Python-related change: a pull request of pytest.vim,
+      # project-detect or the dotfiles, or a run by hand. Elsewhere those
+      # tests are TODO skips
       - name: Install pytest (Python-related changes)
         if: >-
           github.event_name != 'pull_request' ||
-          contains(fromJSON('["pytest.vim", "project-detect"]'), github.event.repository.name)
+          contains(fromJSON('["pytest.vim", "project-detect", "dotfiles"]'), github.event.repository.name)
         run: deps/python/bin/python -m pip install --quiet -r test/requirements-pytest.txt
-      # A plugin's pull request, or a push to the dotfiles
-      - name: Check out the commit under test
-        if: github.event_name == 'pull_request' || github.event_name == 'push'
+      # A plugin's pull request, or the dotfiles'
+      - name: Check out the pull request's commit
+        if: github.event_name == 'pull_request'
         env:
           NAME: ${{ github.event.repository.name }}
-          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          SHA: ${{ github.event.pull_request.head.sha }}
         run: bin/pin "$NAME" "$SHA"
       - name: Run the suite
         run: bin/test
-      # The dotfiles in deps/ (at the pushed commit, for a push), every plugin
-      # they Plug at main, the pull request's at its commit
+      # The dotfiles in deps/ (at the pull request's commit, for theirs),
+      # every plugin they Plug at main, a plugin's pull request's at its commit
       - name: Smoke test
         env:
           NAME: ${{ github.event.repository.name }}
           SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          if [ -n "$SHA" ]; then
+          if [ -n "$SHA" ] && [ "$NAME" != dotfiles ]; then
             bin/smoke deps/dotfiles "$NAME" "$SHA"
           else
             bin/smoke deps/dotfiles
