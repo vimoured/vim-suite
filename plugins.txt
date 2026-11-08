@@ -20,7 +20,7 @@ project-detect    roumail/project-detect     frozen
 vim-place         roumail/vim-place          frozen
 vim-lists         roumail/vim-lists          frozen
 vim-review        roumail/vim-review         frozen
-vim-draft         roumail/vim-draft          frozen
+vim-draft         vimoured/vim-draft         frozen
 buffer-tools      vimoured/buffer-tools      frozen
 text-tools        vimoured/text-tools        frozen
 glow-preview      vimoured/glow-preview      frozen
