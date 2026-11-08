@@ -5,29 +5,6 @@
 #
 # One test per line: <suite> <test>, as the TAP report names it, then the bug.
 
-# buffer-tools: :BufferClose on a running terminal with another buffer to show
-# raises E948 from :buffer, and the terminal stays
-# (autoload/buffer_tools.vim, buffer_tools#close)
-buffer-tools close_a_running_terminal_with_another_buffer_left
-
-# dispatch-extras: the repeated :Start times out now and then on CI (fzf-utils#3
-# and buffer-tools#4's runs, 2026-11-08), never here; cause not known
-dispatch-extras repeat_start_reruns_the_last_start
-
-# gh-extras: 'aboveleft 10new' above the thread list is evened out by
-# 'equalalways' with the window above it, so the reply draft isn't 10 lines
-# (13 in a 35-line Vim; autoload/gh_extras/threads.vim, reply_draft)
-gh-extras reply_draft_is_10_lines
-# gh-extras: <CR> on a whole-file thread opens the commit it was made on, even
-# on the PR's own branch, where a thread opens the work tree
-# (autoload/gh_extras/threads.vim, s:outdated counts a null line as outdated)
-gh-extras whole_file_thread_on_its_branch_opens_the_work_tree
-
-# pytest.vim: repeating a --trace session (dispatch-extras' _rs) goes through
-# vim-dispatch's usual handlers, so with _cs toggled to tmux it opens a tmux
-# window, not a Vim terminal
-pytest.vim repeating_a_trace_in_a_terminal_whatever_the_start_strategy
-
 # glow-preview: glow doesn't show in the live tmux pane within 10 s, now and
 # then, with or without other changes; cause not known. Skipped on CI, which
 # has no glow

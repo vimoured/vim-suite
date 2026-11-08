@@ -8,12 +8,16 @@ let s:suite = themis#suite('dispatch-extras')
 
 let s:tmp = resolve(tempname())
 
+function! s:running() abort
+  return filter(term_list(), 'job_status(term_getjob(v:val)) ==# "run"')
+endfunction
+
 function! s:suite.before_each() abort
   " vim-dispatch's exit callback deletes its terminal's buffer: E516 if wiped
-  for l:buf in filter(term_list(), 'job_status(term_getjob(v:val)) ==# "run"')
+  for l:buf in s:running()
     call job_stop(term_getjob(l:buf), 'kill')
   endfor
-  call s:wait('empty(filter(term_list(), ''job_status(term_getjob(v:val)) ==# "run"''))', 'the terminals to end')
+  call s:wait('empty(s:running())', 'the terminals to end')
   silent! tabonly!
   silent! only!
   silent! %bwipeout!
@@ -59,6 +63,8 @@ endfunction
 function! s:suite.repeat_start_reruns_the_last_start() abort
   Start! sh -c 'echo ran >> started'
   call s:wait("s:lines('started') == 1", 'the :Start')
+  " vim-dispatch goes back to a :Start still running instead of repeating it
+  call s:wait('empty(s:running())', 'the :Start to end')
   call assert_notmatch('E\d\+:', s:type('_rs'), 'no error')
   call s:wait("s:lines('started') == 2", 'the :Start again')
 endfunction
