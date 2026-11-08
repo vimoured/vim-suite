@@ -28,6 +28,6 @@ qf-tools          roumail/qf-tools           frozen
 dispatch-extras   vimoured/dispatch-extras   frozen
 fzf-utils         roumail/fzf-utils          frozen
 pytest.vim        roumail/pytest.vim         frozen
-fugitive-extras   roumail/fugitive-extras    frozen
+fugitive-extras   vimoured/fugitive-extras   frozen
 gh-extras         vimoured/gh-extras         frozen
 vim-prompts       roumail/vim-prompts        live
