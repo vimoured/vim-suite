@@ -3,7 +3,9 @@
 # a shallow clone of its default branch, or, when already there, an update to
 # that branch's latest commit. All the repositories are public; no token.
 # Then makes $SUITE_DEPS/python, a venv with test/requirements.txt, from
-# $SUITE_PYTHON (default python3; the suite is checked with 3.14).
+# $SUITE_PYTHON (default python3; the suite is checked with 3.14), and
+# test/requirements-pytest.txt unless SUITE_PYTEST=0 (CI installs it only for
+# Python-related pull requests).
 #
 #   bin/fetch
 set -e
@@ -32,3 +34,6 @@ else
   echo "update python"
 fi
 "$venv/bin/python" -m pip install --quiet --disable-pip-version-check -r "$root/test/requirements.txt"
+if [ "${SUITE_PYTEST:-1}" != 0 ]; then
+  "$venv/bin/python" -m pip install --quiet --disable-pip-version-check -r "$root/test/requirements-pytest.txt"
+fi

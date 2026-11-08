@@ -5,13 +5,6 @@
 #
 # One test per line: <suite> <test>, as the TAP report names it, then the bug.
 
-# pytest.vim: :YankTest* sets @+, which errors (E354) on a Vim without
-# +clipboard, as on CI. autoload/pytest.vim:43; fix: pytest-clipboard.patch
-pytest.vim file_keys
-pytest.vim list_keys
-pytest.vim list_entry_moved_or_gone
-pytest.vim outline
-
 # buffer-tools: :BufferClose shows the previous buffer by number, not the most
 # recently used one (autoload/buffer_tools.vim, buffer_tools#close)
 buffer-tools close_shows_the_last_used
@@ -64,3 +57,9 @@ qf-tools toggle_with_a_location_list_open
 # finds nothing (autoload/fzf_utils.vim, fzf_utils#word_pattern). Passes on a
 # Vim with getregion(): bin/test warns there that it's listed
 fzf-utils grep_a_whole_line_selection
+
+# pytest.vim: --trace sessions run with :Start! -strategy=terminal, but
+# vim-dispatch has no -strategy option: they're in a Vim terminal only while
+# g:dispatch_no_tmux_start is set (the dotfiles' default). Toggled off (_cs),
+# they go to tmux, or outside it nowhere visible (autoload/pytest/dispatch.vim)
+pytest.vim trace_in_a_terminal_whatever_the_start_strategy

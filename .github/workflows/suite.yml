@@ -44,7 +44,16 @@ jobs:
       - name: Fetch the plugins and dotfiles
         env:
           SUITE_PYTHON: python
+          SUITE_PYTEST: 0
         run: bin/fetch
+      # Real pytest runs (pytest.vim's spec, through the dotfiles' chkpyt.sh)
+      # only for a Python-related change: a pull request of pytest.vim or
+      # project-detect, or a run by hand. Elsewhere those tests are TODO skips
+      - name: Install pytest (Python-related changes)
+        if: >-
+          github.event_name != 'pull_request' ||
+          contains(fromJSON('["pytest.vim", "project-detect"]'), github.event.repository.name)
+        run: deps/python/bin/python -m pip install --quiet -r test/requirements-pytest.txt
       - name: Check out the pull request's plugin
         if: github.event_name == 'pull_request'
         env:
