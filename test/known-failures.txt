@@ -53,3 +53,8 @@ gh-extras whole_file_thread_shows_its_path
 # (with or without !) put the older side on the right; it belongs on the left,
 # so what was added is on the right (autoload/fugitive_extras.vim, :Gvdiffsplit)
 fugitive-extras diff_older_side_on_the_left
+
+# qf-tools: :QfToggle takes a location list window for the quickfix window
+# (both have 'buftype' quickfix), so with one open it runs :cclose and opens
+# nothing (autoload/qf_tools.vim, qf_tools#toggle)
+qf-tools toggle_with_a_location_list_open
