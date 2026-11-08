@@ -30,4 +30,4 @@ fzf-utils         vimoured/fzf-utils         frozen
 pytest.vim        vimoured/pytest.vim        frozen
 fugitive-extras   vimoured/fugitive-extras   frozen
 gh-extras         vimoured/gh-extras         frozen
-vim-prompts       roumail/vim-prompts        live
+vim-prompts       vimoured/vim-prompts       live
