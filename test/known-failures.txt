@@ -5,21 +5,13 @@
 #
 # One test per line: <suite> <test>, as the TAP report names it, then the bug.
 
-# buffer-tools: :BufferClose shows the previous buffer by number, not the most
-# recently used one (autoload/buffer_tools.vim, buffer_tools#close)
-buffer-tools close_shows_the_last_used
-# buffer-tools: :BufferClose with only terminal/netrw/nofile buffers left
-# raises E684 instead of leaving an empty buffer
-buffer-tools close_with_only_a_terminal_left
-# buffer-tools: :BufferClose uses bdelete!, so unsaved changes are lost
-buffer-tools close_keeps_unsaved_changes
+# buffer-tools: :BufferClose on a running terminal with another buffer to show
+# raises E948 from :buffer, and the terminal stays
+# (autoload/buffer_tools.vim, buffer_tools#close)
+buffer-tools close_a_running_terminal_with_another_buffer_left
 
-# glow-preview: live mode run again opens another tmux pane instead of
-# replacing the previous one
-glow-preview live_preview_again_replaces_the_pane
-
-# dispatch-extras: the repeated :Start timed out once on CI (fzf-utils#3's run,
-# 2026-11-08) and passed on the other runs; cause not known
+# dispatch-extras: the repeated :Start times out now and then on CI (fzf-utils#3
+# and buffer-tools#4's runs, 2026-11-08), never here; cause not known
 dispatch-extras repeat_start_reruns_the_last_start
 
 # gh-extras: 'aboveleft 10new' above the thread list is evened out by
@@ -31,8 +23,12 @@ gh-extras reply_draft_is_10_lines
 # (autoload/gh_extras/threads.vim, s:outdated counts a null line as outdated)
 gh-extras whole_file_thread_on_its_branch_opens_the_work_tree
 
-# pytest.vim: --trace sessions run with :Start! -strategy=terminal, but
-# vim-dispatch has no -strategy option: they're in a Vim terminal only while
-# g:dispatch_no_tmux_start is set (the dotfiles' default). Toggled off (_cs),
-# they go to tmux, or outside it nowhere visible (autoload/pytest/dispatch.vim)
-pytest.vim trace_in_a_terminal_whatever_the_start_strategy
+# pytest.vim: repeating a --trace session (dispatch-extras' _rs) goes through
+# vim-dispatch's usual handlers, so with _cs toggled to tmux it opens a tmux
+# window, not a Vim terminal
+pytest.vim repeating_a_trace_in_a_terminal_whatever_the_start_strategy
+
+# glow-preview: glow doesn't show in the live tmux pane within 10 s, now and
+# then, with or without other changes; cause not known. Skipped on CI, which
+# has no glow
+glow-preview live_preview_in_a_tmux_pane_rerenders_on_save

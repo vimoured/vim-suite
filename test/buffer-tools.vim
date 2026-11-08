@@ -181,8 +181,19 @@ function! s:suite.close_keeps_unsaved_changes() abort
   call s:visit('b.txt')
   call setline(1, 'unsaved change')
   let l:b = bufnr('%')
-  call s:type(s:close)
+  call assert_equal("\nb.txt has unsaved changes", s:type(s:close))
+  call assert_equal(l:b, bufnr('%'), 'it stays in the window')
   call assert_equal(['unsaved change'], getbufline(l:b, 1, '$'))
+endfunction
+
+function! s:suite.close_a_running_terminal_with_another_buffer_left() abort
+  edit a.txt
+  sleep 1100m
+  terminal ++curwin sleep 60
+  let l:term = bufnr('%')
+  call assert_equal('', s:type("\<C-w>n" . s:close), 'no error')
+  call assert_equal('a.txt', bufname('%'))
+  call assert_false(buflisted(l:term), 'the terminal is deleted')
 endfunction
 
 function! s:suite.bufferclose_command() abort

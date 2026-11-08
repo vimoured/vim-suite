@@ -232,9 +232,17 @@ function! s:suite.trace_keys() abort
   call assert_match('tests/test_sample\.py --trace', s:traced())
 endfunction
 
-" In a Vim terminal whatever :Start's strategy: inside tmux, with
-" dispatch-extras' _cs toggled to tmux (a private tmux server here)
-function! s:suite.trace_in_a_terminal_whatever_the_start_strategy() abort
+function! s:end_terminals() abort
+  for l:buf in term_list()
+    call job_stop(term_getjob(l:buf), 'kill')
+  endfor
+  call s:wait('empty(filter(term_list(), "term_getstatus(v:val) =~# ''running''"))', 'the terminals to end', 60)
+endfunction
+
+" A --trace session inside tmux (a private server here), with dispatch-extras'
+" _cs toggled to tmux: in a Vim terminal whatever :Start's strategy, and so is
+" a:1, keys that repeat it
+function! s:trace_in_tmux(...) abort
   call s:needs_pytest()
   if !executable('tmux')
     call themis#helper('assert').skip('TODO: needs tmux (CI has none)')
@@ -251,15 +259,28 @@ function! s:suite.trace_in_a_terminal_whatever_the_start_strategy() abort
     call s:type(s:lead . 'tf')
     call assert_true(s:wait('!empty(filter(term_list(), "term_getstatus(v:val) =~# ''running''"))',
           \ 'a Vim terminal', 60), 'in a Vim terminal')
+    if a:0
+      " vim-dispatch goes back to a session still running instead of repeating it
+      call s:end_terminals()
+      call s:type(a:1)
+      call assert_true(s:wait('!empty(filter(term_list(), "term_getstatus(v:val) =~# ''running''"))',
+            \ 'a Vim terminal again', 60), 'repeated in a Vim terminal')
+    endif
     call assert_equal(l:windows, len(systemlist(l:tmux . 'list-windows -a')), 'not in a tmux window')
   finally
     let g:dispatch_no_tmux_start = l:saved
     unlet $TMUX
     call system(l:tmux . 'kill-server')
-    for l:buf in term_list()
-      call job_stop(term_getjob(l:buf), 'kill')
-    endfor
+    call s:end_terminals()
   endtry
+endfunction
+
+function! s:suite.trace_in_a_terminal_whatever_the_start_strategy() abort
+  call s:trace_in_tmux()
+endfunction
+
+function! s:suite.repeating_a_trace_in_a_terminal_whatever_the_start_strategy() abort
+  call s:trace_in_tmux('_rs')
 endfunction
 
 " Only the project's test files have the keys
