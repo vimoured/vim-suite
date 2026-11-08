@@ -1,34 +1,47 @@
-" vim-draft: what the dotfiles use of it. Ported from its test/run.vim.
+" vim-draft: what the dotfiles use of it (:Scratch, also from the shell's
+" `scratch` alias, `vim -c Scratch -c only`; :DraftSave), what other plugins
+" call (roumail_draft#open: fugitive-extras', gh-extras' and vim-prompts'
+" drafts), and its README, through its commands. Saved scratches go to
+" vim-draft/ in the XDG state directory, in env.vim's private HOME; drafts
+" where vim-place keeps plugins' files.
 let g:suite_spec = expand('<sfile>')
 execute 'source' fnameescape(expand('<sfile>:p:h') . '/helper/env.vim')
 let s:suite = themis#suite('vim-draft')
 
-" Only this plugin, vim-place, where drafts are saved ($VIM_PLACE), and
-" fugitive, which finds git dirs for it ($FUGITIVE), else vim-plug's copies:
-" Vim's own ones aren't all quiet in silent Ex mode
-
 let s:tmp = resolve(tempname())
-call mkdir(s:tmp . '/repo', 'p')
-call system('git -C ' . shellescape(s:tmp . '/repo') . ' init -q')
-call system('git -C ' . shellescape(s:tmp . '/repo') . ' -c user.name=t -c user.email=t@t'
-      \ . ' commit -q --allow-empty -m init')
-call system('git -C ' . shellescape(s:tmp . '/repo') . ' worktree add -q '
-      \ . shellescape(s:tmp . '/linked'))
-call mkdir(s:tmp . '/plain/sub', 'p')
-let g:roumail_draft_save_dir = s:tmp . '/saves'
+let s:scratches = $XDG_STATE_HOME . '/vim-draft'
 let g:roumail_place_dir = s:tmp . '/places'
 let s:sent = []
-let s:out = []
 
 function! s:Send(text) abort
   call add(s:sent, a:text)
 endfunction
 
+function! s:Fail(text) abort
+  throw 'network down'
+endfunction
+
+" A repo, a linked work tree of it, and a plain directory with a subdirectory
 function! s:reset() abort
   let s:sent = []
   silent! only!
   silent! %bwipeout!
+  call delete(s:tmp, 'rf')
+  call delete(s:scratches, 'rf')
+  call mkdir(s:tmp . '/repo', 'p')
+  call system('git -C ' . shellescape(s:tmp . '/repo') . ' init -q')
+  call system('git -C ' . shellescape(s:tmp . '/repo') . ' commit -q --allow-empty -m init')
+  call mkdir(s:tmp . '/plain/sub', 'p')
   execute 'cd' fnameescape(s:tmp . '/plain')
+endfunction
+
+function! s:suite.before_each() abort
+  call s:reset()
+endfunction
+
+function! s:suite.after() abort
+  cd /
+  call delete(s:tmp, 'rf')
 endfunction
 
 " What vim-place names a directory outside a repository by
@@ -37,16 +50,16 @@ function! s:place(dir) abort
 endfunction
 
 function! s:draft(...) abort
-  call roumail_draft#open('test://draft', get(a:, 1, ['one', 'two']), function('s:Send'))
+  call roumail_draft#open('test://draft', get(a:, 1, ['one', 'two']), function('s:Send'),
+        \ get(a:, 2, {}))
 endfunction
 
-" assert_fails() makes vim -Es exit non-zero even when it passes
-function! s:fails(cmd, pattern) abort
+" An Ex command; returns its messages, or the error it raised
+function! s:run(cmd) abort
   try
-    execute a:cmd
-    call assert_report(a:cmd . ': no error')
+    return execute(a:cmd)
   catch
-    call assert_match(a:pattern, v:exception)
+    return v:exception
   endtry
 endfunction
 
@@ -54,25 +67,52 @@ function! s:saves(dir) abort
   return sort(glob(a:dir . '/*', 1, 1))
 endfunction
 
-" Drafts
+" Without vim-place: what needs it says so
+function! s:without_place(cmd) abort
+  let l:rtp = &runtimepath
+  try
+    execute 'set runtimepath-=' . fnameescape(g:suite.deps . '/vim-place')
+    return s:run(a:cmd)
+  finally
+    let &runtimepath = l:rtp
+  endtry
+endfunction
+
+""" A draft, as another plugin opens it
 
 function! s:suite.open() abort
   call s:draft()
   call assert_equal('test://draft', bufname())
-  call assert_equal('acwrite', &buftype)
   call assert_equal(['one', 'two'], getline(1, '$'))
-  call assert_equal([2, 3], [line('.'), col('.')])
+  call assert_equal([2, 3], [line('.'), col('.')], 'at the end of its text')
+  call assert_equal('n', mode(), 'in normal mode')
   call assert_equal(2, winnr('$'))
+  call assert_equal(2, winnr(), 'split below')
   call assert_false(&modified)
 endfunction
 
-function! s:suite.wq_sends_saved_text() abort
+function! s:suite.open_with_options() abort
+  call s:draft(['x'], {'split': 'botright vnew', 'saved': 'Note saved', 'empty': 'Note empty'})
+  call assert_equal([2, winwidth(0) < &columns], [winnr('$'), 1], 'a vertical split')
+  call assert_equal("\nNote saved", s:run('write'))
+  call setline(1, '')
+  call assert_equal("\nNote empty", s:run('write'))
+endfunction
+
+function! s:suite.write_says_whether_closing_hands_it_on() abort
+  call s:draft()
+  call assert_equal("\nDraft saved: closing hands it on", s:run('write'))
+  call setline(1, ['', ''])
+  call assert_equal("\nDraft empty: closing hands nothing on", s:run('write'))
+endfunction
+
+function! s:suite.wq_hands_on_saved_text() abort
   call s:draft([])
   call setline(1, ['', 'hello', 'world', '', ''])
   write
   call append('$', 'not saved')
   quit!
-  call assert_equal(["hello\nworld"], s:sent)
+  call assert_equal(["hello\nworld"], s:sent, 'what :w saved, without the blank lines around it')
   call assert_equal(1, winnr('$'))
 endfunction
 
@@ -82,8 +122,11 @@ function! s:suite.quit_before_write_drops() abort
   call assert_equal([], s:sent)
 endfunction
 
-function! s:suite.empty_sends_nothing() abort
-  call s:draft([' ', ''])
+function! s:suite.empty_hands_on_nothing() abort
+  call s:draft(['x'])
+  write
+  " A saved draft is dropped by emptying it
+  call setline(1, [' ', ''])
   wq
   call assert_equal([], s:sent)
 endfunction
@@ -97,89 +140,142 @@ function! s:suite.unique_name() abort
 endfunction
 
 function! s:suite.last_window_keeps_vim() abort
+  edit from.txt
   call s:draft()
   write
   only
   quit
   " Still running: the buffer it was opened from took the window
   call assert_equal(["one\ntwo"], s:sent)
-  call assert_equal(1, winnr('$'))
-endfunction
-
-function! s:Fail(text) abort
-  throw 'network down'
+  call assert_equal(['from.txt'], map(range(1, winnr('$')), 'bufname(winbufnr(v:val))'))
+  " Opened from a buffer gone since: an empty one
+  call s:draft()
+  only
+  bwipeout! from.txt
+  write
+  quit
+  call assert_equal([1, ''], [winnr('$'), bufname()])
 endfunction
 
 function! s:suite.failed_hand_on_keeps_text() abort
-  let l:dir = s:tmp . '/repo/.git/vim-draft'
   execute 'edit' fnameescape(s:tmp . '/repo/file.txt')
   call roumail_draft#open('test://draft', ['reply'], function('s:Fail'))
   setfiletype markdown
   call setline(1, ['reply', 'second line'])
   write
-  call s:fails('quit', 'handing on failed (network down); text kept in .*/vim-draft/\d\{8}-\d\{6}\.md$')
+  call assert_match('^vim-draft: handing on failed (network down); text kept in .*/vim-draft/\d\{8}-\d\{6}\.md$',
+        \ s:run('quit'))
   call assert_false(bufexists('test://draft'))
-  let l:files = s:saves(l:dir)
+  let l:files = s:saves(s:tmp . '/repo/.git/vim-draft')
   call assert_equal(1, len(l:files))
   call assert_equal(['reply', 'second line'], readfile(get(l:files, 0, '/nonexistent')))
-  call delete(l:dir, 'rf')
 endfunction
 
-" Scratches
+" Where the file can't be written: the unnamed register
+function! s:suite.failed_hand_on_keeps_text_in_the_register() abort
+  call mkdir(s:tmp . '/places', 'p')
+  call writefile([], s:tmp . '/places/' . s:place(s:tmp . '/plain'))
+  call roumail_draft#open('test://draft', ['reply'], function('s:Fail'))
+  write
+  call assert_equal('vim-draft: handing on failed (network down); text kept in the unnamed register',
+        \ s:run('quit'))
+  call assert_equal("reply\n", getreg('"'))
+endfunction
+
+""" Scratches
 
 function! s:suite.scratch() abort
   Scratch
   call assert_equal(2, winnr('$'))
+  call assert_true(winwidth(0) < &columns, 'a vertical split')
   call assert_equal('scratch1', bufname())
   call assert_equal(['nofile', 'wipe'], [&buftype, &bufhidden])
   Scratch
   call assert_equal(3, winnr('$'))
   call assert_equal('scratch2', bufname())
+  " ! in the current window: scratch2 is dropped, and its name free again
   Scratch!
-  call assert_equal(3, winnr('$'))
+  call assert_equal([3, 'scratch2'], [winnr('$'), bufname()], '! in the current window')
+  " Closing drops it
+  call setline(1, 'gone')
+  quit
+  call assert_false(bufexists('scratch2'))
+endfunction
+
+" The shell's scratch alias
+function! s:suite.scratch_alone() abort
+  Scratch
+  only
+  call assert_equal([1, 'scratch1'], [winnr('$'), bufname()])
 endfunction
 
 function! s:suite.scratch_from() abort
   ScratchFrom printf 'a\nb\n'
   call assert_equal(['a', 'b'], getline(1, '$'))
-  call assert_equal('nofile', &buftype)
+  call assert_equal(['nofile', 1], [&buftype, winnr('$')])
+  call assert_notequal(-1, index(getcompletion('ScratchFrom printf', 'cmdline'), 'printf'), 'a command')
+  call writefile([], s:tmp . '/plain/notes.txt')
+  call assert_equal(['notes.txt'], getcompletion('ScratchFrom cat no', 'cmdline'), 'then files')
 endfunction
 
-function! s:suite.scratch_buf_range() abort
+function! s:suite.scratch_buf() abort
+  edit code.py
   call setline(1, ['x', 'y', 'z'])
-  setfiletype python
   2,3ScratchBuf
   call assert_equal(['y', 'z'], getline(1, '$'))
-  call assert_equal('python', &filetype)
-  call assert_equal('nofile', &buftype)
+  call assert_equal(['python', 'nofile', 2], [&filetype, &buftype, winnr('$')])
+  only
+  " No range: all of it
+  edit code.py
+  2
+  ScratchBuf!
+  call assert_equal(['x', 'y', 'z'], getline(1, '$'))
+  " Another buffer, whole: by name, number or #
+  edit other.txt
+  ScratchBuf code.py
+  call assert_equal(['x', 'y', 'z'], getline(1, '$'))
+  only
+  execute 'ScratchBuf!' bufnr('code.py')
+  call assert_equal([['x', 'y', 'z'], 1], [getline(1, '$'), winnr('$')])
+  edit other.txt
+  edit code.py
+  ScratchBuf! #
+  call assert_equal([''], getline(1, '$'), 'other.txt')
 endfunction
 
 function! s:suite.scratch_buf_file() abort
   call writefile(['# title'], s:tmp . '/notes.md')
   execute 'ScratchBuf!' fnameescape(s:tmp . '/notes.md')
   call assert_equal(['# title'], getline(1, '$'))
-  call assert_equal('markdown', &filetype)
-  call assert_equal(1, winnr('$'))
+  call assert_equal(['markdown', 1], [&filetype, winnr('$')])
+  call assert_match('^Vim(echoerr):ScratchBuf: no buffer or file matching nope$', s:run('ScratchBuf nope'))
+  edit code.py
+  call writefile([], s:tmp . '/plain/code.txt')
+  call assert_equal(['code.py', 'code.txt'], getcompletion('ScratchBuf code', 'cmdline'),
+        \ 'buffers, then files')
 endfunction
 
-" Saving
+""" Saving
 
 function! s:suite.save_scratch() abort
-  let l:dir = g:roumail_draft_save_dir
   Scratch!
   call setline(1, ['kept'])
-  DraftSave
-  let l:files = s:saves(l:dir)
+  call assert_match('^\nDraftSave: wrote .*/vim-draft/\d\{8}-\d\{6}\.txt$', s:run('DraftSave'))
+  let l:files = s:saves(s:scratches)
   call assert_equal(1, len(l:files))
-  call assert_match('/\d\{8}-\d\{6}\.txt$', get(l:files, 0, ''))
   call assert_equal(['kept'], readfile(get(l:files, 0, '/nonexistent')))
   " Still a scratch, and saving again updates the same file
   call assert_equal('nofile', &buftype)
   call setline(1, ['kept again'])
   DraftSave
-  call assert_equal(l:files, s:saves(l:dir))
+  call assert_equal(l:files, s:saves(s:scratches))
   call assert_equal(['kept again'], readfile(l:files[0]))
-  call delete(l:dir, 'rf')
+  " Another, in the same second: a file of its own
+  Scratch!
+  DraftSave
+  Scratch!
+  DraftSave
+  call assert_equal(3, len(s:saves(s:scratches)))
 endfunction
 
 function! s:suite.save_to_dir_and_path() abort
@@ -188,18 +284,27 @@ function! s:suite.save_to_dir_and_path() abort
   call setline(1, ['x'])
   execute 'DraftSave' fnameescape(s:tmp . '/kept/')
   call assert_match('/kept/\d\{8}-\d\{6}\.md$', get(s:saves(s:tmp . '/kept'), 0, ''))
+  call mkdir(s:tmp . '/existing')
+  execute 'DraftSave' fnameescape(s:tmp . '/existing')
+  call assert_equal(1, len(s:saves(s:tmp . '/existing')), 'an existing directory')
   execute 'DraftSave' fnameescape(s:tmp . '/named.md')
   call assert_equal(['x'], readfile(s:tmp . '/named.md'))
   " Another buffer's file isn't overwritten without !
   Scratch!
   call setline(1, ['y'])
-  call s:fails('DraftSave ' . fnameescape(s:tmp . '/named.md'), 'exists')
+  call assert_match('^Vim(echoerr):DraftSave: .*named\.md exists (add ! to overwrite)$',
+        \ s:run('DraftSave ' . fnameescape(s:tmp . '/named.md')))
   call assert_equal(['x'], readfile(s:tmp . '/named.md'))
   execute 'DraftSave!' fnameescape(s:tmp . '/named.md')
   call assert_equal(['y'], readfile(s:tmp . '/named.md'))
+  call mkdir(s:tmp . '/locked')
+  call setfperm(s:tmp . '/locked', 'r-xr-xr-x')
+  call assert_match('E482: Can''t create file .*/locked/x\.txt$',
+        \ s:run('DraftSave ' . fnameescape(s:tmp . '/locked/x.txt')))
+  call setfperm(s:tmp . '/locked', 'rwxr-xr-x')
 endfunction
 
-function! s:suite.save_draft_keeps_sending() abort
+function! s:suite.save_draft_keeps_handing_on() abort
   execute 'edit' fnameescape(s:tmp . '/repo/file.txt')
   call s:draft(['reply'])
   setfiletype markdown
@@ -209,7 +314,7 @@ function! s:suite.save_draft_keeps_sending() abort
   call assert_equal(1, len(l:files))
   call assert_match('\.md$', get(l:files, 0, ''))
   call assert_equal(['reply, edited'], readfile(get(l:files, 0, '/nonexistent')))
-  " Saving left the draft as it was: still to :w, and :wq sends
+  " Saving left the draft as it was: still to :w, and :wq hands it on
   call assert_equal('acwrite', &buftype)
   call assert_true(&modified)
   wq
@@ -217,41 +322,24 @@ function! s:suite.save_draft_keeps_sending() abort
 endfunction
 
 function! s:suite.save_draft_outside_git() abort
-  let l:dir = g:roumail_place_dir
   execute 'edit' fnameescape(s:tmp . '/outside.txt')
   call s:draft(['x'])
   DraftSave
-  call assert_equal(1, len(s:saves(l:dir . '/' . s:place(s:tmp . '/plain') . '/vim-draft')))
+  call assert_equal(1, len(s:saves(g:roumail_place_dir . '/' . s:place(s:tmp . '/plain') . '/vim-draft')))
   DraftList
   call assert_equal(['x'], map(getloclist(0), 'v:val.text'))
   lclose
   " Another directory's drafts are its own
   call setloclist(0, [])
   cd sub
-  silent DraftList
+  call assert_match('^\nDraftList: nothing saved in ', s:run('DraftList'))
   call assert_equal([], getloclist(0))
-  call delete(l:dir, 'rf')
 endfunction
 
-function! s:suite.save_scratch_xdg() abort
-  let l:saved = [g:roumail_draft_save_dir, $XDG_STATE_HOME]
-  unlet g:roumail_draft_save_dir
-  let $XDG_STATE_HOME = s:tmp . '/state'
-  try
-    Scratch!
-    call setline(1, ['x'])
-    DraftSave
-    call assert_equal(1, len(s:saves(s:tmp . '/state/vim-draft')))
-  finally
-    let [g:roumail_draft_save_dir, $XDG_STATE_HOME] = l:saved
-    call delete(s:tmp . '/state', 'rf')
-  endtry
-endfunction
-
+" Any other buffer, a plugin's output say, is saved as a draft of its own
+" repository
 function! s:suite.save_other_buffer_in_repository() abort
   let l:dir = s:tmp . '/repo/.git/vim-draft'
-  " Saves of the other tests in this repository
-  call delete(l:dir, 'rf')
   execute 'cd' fnameescape(s:tmp . '/repo')
   new
   setlocal buftype=nofile bufhidden=hide noswapfile
@@ -265,28 +353,32 @@ function! s:suite.save_other_buffer_in_repository() abort
   DraftSave
   call assert_equal(l:files, s:saves(l:dir))
   call assert_equal(['answer again'], readfile(l:files[0]))
-  call assert_equal([], s:saves(g:roumail_draft_save_dir))
-  call delete(l:dir, 'rf')
+  call assert_equal([], s:saves(s:scratches))
 endfunction
 
 function! s:suite.list() abort
-  call mkdir(g:roumail_draft_save_dir, 'p')
-  call writefile(['older'], g:roumail_draft_save_dir . '/a.txt')
-  call writefile(['newer'], g:roumail_draft_save_dir . '/b.txt')
-  call system('touch -t 202001010000 ' . shellescape(g:roumail_draft_save_dir . '/a.txt'))
+  call mkdir(s:scratches, 'p')
+  call writefile(['older'], s:scratches . '/a.txt')
+  call writefile(['newer'], s:scratches . '/b.txt')
+  call system('touch -t 202001010000 ' . shellescape(s:scratches . '/a.txt'))
+  call system('touch -t 202101010000 ' . shellescape(s:scratches . '/b.txt'))
+  " From a draft: the drafts of the buffer it was opened from
+  execute 'edit' fnameescape(s:tmp . '/repo/file.txt')
+  call s:draft(['in the repo'])
+  DraftSave
   DraftList
-  call assert_equal(['newer', 'older'], map(getloclist(0), 'v:val.text'))
-  lclose
-  call delete(g:roumail_draft_save_dir, 'rf')
+  call assert_equal(['in the repo', 'newer', 'older'], map(getloclist(0), 'v:val.text'))
+  call assert_equal('DraftList', getloclist(0, {'title': 1}).title)
 endfunction
 
-let s:failed = 0
-
-function! s:suite.before_each() abort
-  call s:reset()
-endfunction
-
-function! s:suite.after() abort
-  cd /
-  call delete(s:tmp, 'rf')
+function! s:suite.without_vim_place() abort
+  call s:draft(['x'])
+  call assert_equal("\nvim-draft: :DraftSave of a draft needs vim-place (with vim-fugitive), which is not installed",
+        \ s:without_place('DraftSave'))
+  call assert_equal("\nvim-draft: :DraftList needs vim-place (with vim-fugitive), which is not installed",
+        \ s:without_place('DraftList'))
+  " A scratch, and a draft to a path, need no vim-place
+  call assert_match('^\nDraftSave: wrote ', s:without_place('DraftSave ' . fnameescape(s:tmp . '/d.txt')))
+  Scratch!
+  call assert_match('^\nDraftSave: wrote ', s:without_place('DraftSave'))
 endfunction
