@@ -66,7 +66,8 @@ endfunction
 function! s:suite.gb_skips_a_terminal_alternate() abort
   edit a.txt
   terminal ++curwin sleep 60
-  edit b.txt
+  " A running terminal is left with :hide ('hidden' is off in the dotfiles)
+  hide edit b.txt
   call s:type('gb')
   call assert_equal('a.txt', bufname('%'))
 endfunction
@@ -85,7 +86,7 @@ function! s:suite.gb_falls_back_to_the_most_recently_used() abort
   call s:visit('b.txt')
   sleep 1100m
   terminal ++curwin sleep 60
-  edit c.txt
+  hide edit c.txt
   " The alternate is the terminal; b.txt was used after a.txt
   call s:type('gb')
   call assert_equal('b.txt', bufname('%'))
@@ -93,7 +94,7 @@ endfunction
 
 function! s:suite.gb_with_only_a_terminal_left() abort
   terminal ++curwin sleep 60
-  edit a.txt
+  hide edit a.txt
   call assert_equal("\nNo alternate buffer", s:type('gb'))
   call assert_equal('a.txt', bufname('%'))
 endfunction
@@ -146,7 +147,7 @@ function! s:suite.close_skips_terminal_nofile_and_netrw() abort
   sleep 1100m
   terminal ++curwin sleep 60
   sleep 1100m
-  enew
+  hide enew
   setlocal buftype=nofile
   sleep 1100m
   call s:netrw()

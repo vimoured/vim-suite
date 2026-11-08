@@ -16,7 +16,7 @@ endif
 let g:suite = {'errors': [], 'fzf': []}
 let g:suite.root = expand('<sfile>:p:h:h:h')
 let g:suite.deps = empty($SUITE_DEPS) ? g:suite.root . '/deps' : fnamemodify($SUITE_DEPS, ':p:s?/$??')
-set nocompatible hidden noswapfile encoding=utf-8
+set nocompatible noswapfile encoding=utf-8
 
 let g:suite.plugins = []
 let g:suite.frozen = []
