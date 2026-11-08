@@ -321,6 +321,28 @@ function! s:suite.save_draft_keeps_handing_on() abort
   call assert_equal(['reply, edited'], s:sent)
 endfunction
 
+" A failed write loses nothing: the draft stays as it was, and still hands on
+function! s:suite.save_failing_keeps_the_draft() abort
+  call mkdir(s:tmp . '/locked')
+  call setfperm(s:tmp . '/locked', 'r-xr-xr-x')
+  call s:draft(['reply'])
+  write
+  call setline(1, ['reply, edited'])
+  call assert_match('E482: ', s:run('DraftSave ' . fnameescape(s:tmp . '/locked/x.txt')))
+  call assert_equal(['test://draft', ['reply, edited'], 1], [bufname(), getline(1, '$'), &modified])
+  " Not taken for the file it was saved to
+  call assert_match('E482: ', s:run('DraftSave ' . fnameescape(s:tmp . '/locked/x.txt')))
+  write
+  quit
+  call assert_equal(['reply, edited'], s:sent)
+  " A scratch keeps its text too
+  Scratch!
+  call setline(1, 'notes')
+  call assert_match('E482: ', s:run('DraftSave ' . fnameescape(s:tmp . '/locked/y.txt')))
+  call assert_equal(['notes'], getline(1, '$'))
+  call setfperm(s:tmp . '/locked', 'rwxr-xr-x')
+endfunction
+
 function! s:suite.save_draft_outside_git() abort
   execute 'edit' fnameescape(s:tmp . '/outside.txt')
   call s:draft(['x'])
