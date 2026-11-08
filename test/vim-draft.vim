@@ -9,8 +9,9 @@ execute 'source' fnameescape(expand('<sfile>:p:h') . '/helper/env.vim')
 let s:suite = themis#suite('vim-draft')
 
 let s:tmp = resolve(tempname())
+" The XDG state directory: saved scratches, and drafts outside a repository
+let $XDG_STATE_HOME = s:tmp . '/state'
 let s:scratches = $XDG_STATE_HOME . '/vim-draft'
-let g:roumail_place_dir = s:tmp . '/places'
 let s:sent = []
 
 function! s:Send(text) abort
@@ -27,7 +28,6 @@ function! s:reset() abort
   silent! only!
   silent! %bwipeout!
   call delete(s:tmp, 'rf')
-  call delete(s:scratches, 'rf')
   call mkdir(s:tmp . '/repo', 'p')
   call system('git -C ' . shellescape(s:tmp . '/repo') . ' init -q')
   call system('git -C ' . shellescape(s:tmp . '/repo') . ' commit -q --allow-empty -m init')
@@ -173,8 +173,8 @@ endfunction
 
 " Where the file can't be written: the unnamed register
 function! s:suite.failed_hand_on_keeps_text_in_the_register() abort
-  call mkdir(s:tmp . '/places', 'p')
-  call writefile([], s:tmp . '/places/' . s:place(s:tmp . '/plain'))
+  call mkdir($XDG_STATE_HOME, 'p')
+  call writefile([], $XDG_STATE_HOME . '/' . s:place(s:tmp . '/plain'))
   call roumail_draft#open('test://draft', ['reply'], function('s:Fail'))
   write
   call assert_equal('vim-draft: handing on failed (network down); text kept in the unnamed register',
@@ -347,7 +347,7 @@ function! s:suite.save_draft_outside_git() abort
   execute 'edit' fnameescape(s:tmp . '/outside.txt')
   call s:draft(['x'])
   DraftSave
-  call assert_equal(1, len(s:saves(g:roumail_place_dir . '/' . s:place(s:tmp . '/plain') . '/vim-draft')))
+  call assert_equal(1, len(s:saves($XDG_STATE_HOME . '/' . s:place(s:tmp . '/plain') . '/vim-draft')))
   DraftList
   call assert_equal(['x'], map(getloclist(0), 'v:val.text'))
   lclose

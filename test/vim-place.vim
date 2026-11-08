@@ -1,10 +1,9 @@
-" vim-place: what the dotfiles use of it. Ported from its test/run.vim.
+" vim-place: roumail_place#dir() and #get(), as the plugins that keep files
+" call them (fugitive-extras, qf-tools, vim-draft, vim-prompts, ...), and its
+" README.
 let g:suite_spec = expand('<sfile>')
 execute 'source' fnameescape(expand('<sfile>:p:h') . '/helper/env.vim')
 let s:suite = themis#suite('vim-place')
-
-" Only this plugin and fugitive, which finds git dirs for it ($FUGITIVE,
-" else vim-plug's copy): Vim's own ones aren't all quiet in silent Ex mode
 
 let s:tmp = resolve(tempname())
 call mkdir(s:tmp . '/repo', 'p')
@@ -14,8 +13,7 @@ call system('git -C ' . shellescape(s:tmp . '/repo') . ' -c user.name=t -c user.
 call system('git -C ' . shellescape(s:tmp . '/repo') . ' worktree add -q '
       \ . shellescape(s:tmp . '/linked'))
 call mkdir(s:tmp . '/plain/sub', 'p')
-let g:roumail_place_dir = s:tmp . '/saves'
-let s:out = []
+let $XDG_STATE_HOME = s:tmp . '/state'
 
 function! s:reset() abort
   silent! only!
@@ -42,26 +40,21 @@ function! s:suite.dir() abort
   execute 'edit' fnameescape(s:tmp . '/outside.txt')
   call assert_equal(l:git . '/worktrees/linked/q', roumail_place#dir('q', {'bufnr': l:linked, 'worktree': 1}))
   " Outside a repository: one directory per current directory
-  call assert_equal(g:roumail_place_dir . '/' . s:place(s:tmp . '/plain') . '/my-plugin/x',
+  " Outside a repository: the XDG state directory, one place per current
+  " directory
+  call assert_equal($XDG_STATE_HOME . '/' . s:place(s:tmp . '/plain') . '/my-plugin/x',
         \ roumail_place#dir('my-plugin/x'))
+  call assert_true(isdirectory($XDG_STATE_HOME . '/' . s:place(s:tmp . '/plain') . '/my-plugin/x'))
   cd sub
-  call assert_equal(g:roumail_place_dir . '/' . s:place(s:tmp . '/plain/sub') . '/my-plugin/x',
+  call assert_equal($XDG_STATE_HOME . '/' . s:place(s:tmp . '/plain/sub') . '/my-plugin/x',
         \ roumail_place#dir('my-plugin/x'))
-  call delete(g:roumail_place_dir, 'rf')
-endfunction
-
-function! s:suite.dir_xdg() abort
-  let l:saved = [g:roumail_place_dir, $XDG_STATE_HOME]
-  unlet g:roumail_place_dir
-  let $XDG_STATE_HOME = s:tmp . '/state'
+  " No XDG state directory set: ~/.local/state
+  let l:state = $XDG_STATE_HOME
   try
-    execute 'edit' fnameescape(s:tmp . '/outside.txt')
-    let l:dir = s:tmp . '/state/' . s:place(s:tmp . '/plain') . '/my-plugin'
-    call assert_equal(l:dir, roumail_place#dir('my-plugin'))
-    call assert_true(isdirectory(l:dir))
+    unlet $XDG_STATE_HOME
+    call assert_equal(expand('~/.local/state') . '/' . s:place(s:tmp . '/plain/sub') . '/p', roumail_place#dir('p'))
   finally
-    let [g:roumail_place_dir, $XDG_STATE_HOME] = l:saved
-    call delete(s:tmp . '/state', 'rf')
+    let $XDG_STATE_HOME = l:state
   endtry
 endfunction
 
@@ -93,8 +86,6 @@ function! s:suite.get() abort
   execute 'cd' fnameescape(s:tmp . '/repo')
   call assert_equal({'dir': s:tmp . '/repo', 'repo': 1}, roumail_place#get())
 endfunction
-
-let s:failed = 0
 
 function! s:suite.before_each() abort
   call s:reset()

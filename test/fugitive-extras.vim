@@ -33,7 +33,8 @@ function! s:reset() abort
   call delete(s:tmp, 'rf')
   let s:repos += 1
   let s:repo = s:tmp . '/' . s:repos . '/repo'
-  let g:roumail_place_dir = s:tmp . '/saves'
+  " Where comments outside a repository are saved
+  let $XDG_STATE_HOME = s:tmp . '/state'
   call mkdir(s:repo, 'p')
   call s:git('init', '-q', '-b', 'main')
   call writefile(['one', 'two', 'three'], s:repo . '/a.txt')
