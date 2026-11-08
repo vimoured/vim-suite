@@ -1,4 +1,5 @@
-" vim-review: what the dotfiles use of it. Ported from its test/run.vim.
+" vim-review: review#read() and review#write(), as fugitive-extras and
+" vim-prompts call them, and its README.
 let g:suite_spec = expand('<sfile>')
 execute 'source' fnameescape(expand('<sfile>:p:h') . '/helper/env.vim')
 let s:suite = themis#suite('vim-review')
@@ -6,7 +7,6 @@ let s:suite = themis#suite('vim-review')
 let s:tmp = resolve(tempname())
 call mkdir(s:tmp, 'p')
 let s:file = s:tmp . '/comments.txt'
-let s:out = []
 
 function! s:reset() abort
   call delete(s:file)
@@ -37,6 +37,25 @@ function! s:suite.read_counts_lines_not_in_the_format() abort
   call assert_equal({'skipped': 2, 'comments': [
         \ {'path': 'a.py', 'start': 3, 'end': 3, 'body': 'one'},
         \ ]}, review#read(s:file))
+endfunction
+
+" A tab-indented line before any comment isn't one; a comment's text may
+" name another place
+function! s:suite.read_edge_cases() abort
+  call writefile([
+        \ "\tstray",
+        \ 'a.py:3: like b.py:5: here',
+        \ ], s:file)
+  call assert_equal({'skipped': 1, 'comments': [
+        \ {'path': 'a.py', 'start': 3, 'end': 3, 'body': 'like b.py:5: here'},
+        \ ]}, review#read(s:file))
+endfunction
+
+function! s:suite.write_and_read_back() abort
+  let l:comments = [{'path': 'a.py', 'start': 1, 'end': 2, 'body': "\nafter a blank line"}]
+  call review#write(s:file, l:comments)
+  call assert_equal(['a.py:1-2: ', "\tafter a blank line"], readfile(s:file))
+  call assert_equal({'skipped': 0, 'comments': l:comments}, review#read(s:file))
 endfunction
 
 function! s:suite.write() abort
