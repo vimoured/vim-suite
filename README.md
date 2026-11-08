@@ -101,7 +101,7 @@ that commit. All the repositories are public, so it uses no token.
 
 The dotfiles call the same workflow from their pull requests
 (`.github/workflows/vim-suite.yml` there), when one changes what the suite
-reads: `vim-rc/`, `chkpyt.sh`, `.pdbrc.py`, or that workflow. `bin/pin` puts
+reads: `vim-rc/`, `chkpyt.sh`, `.pdbrc.py`, `config/starship/`, or that workflow. `bin/pin` puts
 the dotfiles at the pull request's commit, and the suite and the smoke test
 run against it. A job there, `gate`, always reports: it passes when the suite
 passed or had nothing to run for. Their ruleset, `ruleset-dotfiles.json`, is
@@ -124,8 +124,9 @@ gh api -X POST repos/vimoured/<plugin>/rulesets --input ruleset.json
 
 `bin/smoke` (needs Docker) checks the dotfiles as a whole: a lean Linux image
 (`smoke/`), the dotfiles' Vim config linked as `install.sh` links it, every
-plugin they `Plug` installed with `:PlugInstall`, then a real Vim started on a
-terminal; it fails on any startup error or plugin that didn't install.
+plugin they `Plug` installed with `:PlugInstall`, starship's prompt with the
+dotfiles' config, then a real Vim started on a terminal; it fails on a prompt
+that isn't the expected one, any startup error or plugin that didn't install.
 `bin/smoke <dotfiles-dir> <plugin> <commit>` checks that plugin out at that
 commit once installed, as the gate does. On GitHub it's the last step of
 `suite.yml`; the *smoke* workflow runs it alone by hand, for a dotfiles

@@ -7,7 +7,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       vim-nox git curl ca-certificates ripgrep fzf python3 util-linux \
     && rm -rf /var/lib/apt/lists/* \
     && curl -fsSLo /root/.vim/autoload/plug.vim --create-dirs \
-      https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
+      https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim \
+    && curl -fsSL "https://github.com/starship/starship/releases/latest/download/starship-$(uname -m)-unknown-linux-musl.tar.gz" \
+      | tar xz -C /usr/local/bin
 
 # A UTF-8 terminal, as any real one is (the dotfiles' listchars need it)
 ENV TERM=xterm-256color LANG=C.UTF-8 LC_ALL=C.UTF-8

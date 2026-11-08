@@ -1,8 +1,8 @@
 #!/bin/sh
 # Runs in the smoke image, with the dotfiles at /dotfiles: sets Vim up as the
-# dotfiles' install.sh does, installs every plugin they Plug, then starts a
-# real Vim on a terminal. Fails when Vim reports an error or a plugin is
-# missing. With $SMOKE_PIN ("<plugin> <commit>"), that plugin is checked out
+# dotfiles' install.sh does, installs every plugin they Plug, checks starship's
+# prompt, then starts a real Vim on a terminal. Fails on the wrong prompt, when
+# Vim reports an error or a plugin is missing. With $SMOKE_PIN ("<plugin> <commit>"), that plugin is checked out
 # at that commit once installed: a plugin's pull request.
 set -eu
 dots=/dotfiles
@@ -32,6 +32,21 @@ if [ -n "${SMOKE_PIN:-}" ]; then
     echo "$1 isn't one of the dotfiles' plugins: nothing to pin"
   fi
 fi
+
+echo "### prompt"
+# install.sh, for starship
+mkdir -p "$HOME/.config"
+ln -sfn "$dots/config/starship/starship.toml" "$HOME/.config/starship.toml"
+# Without its config, or with one it can't parse, starship still prints a
+# prompt, its default, so only the exact text tells them apart
+prompt=$(starship prompt 2>&1 | sed 's/\x1b\[[0-9;]*m//g')
+expected='
+ ~   ❯ '
+if [ "$prompt" != "$expected" ]; then
+  printf 'prompt: expected [%s], got [%s]\n' "$expected" "$prompt"
+  exit 1
+fi
+echo "prompt ok"
 
 echo "### startup"
 printf '# smoke\n' >"$HOME/smoke.md"
