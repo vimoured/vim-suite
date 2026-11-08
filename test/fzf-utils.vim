@@ -275,6 +275,29 @@ function! s:suite.complete_path_lists_the_same_files() abort
   call assert_equal(s:with_ignored, s:listed(s:spec().source), 'following the toggle')
 endfunction
 
+" What fzf hands back; completing leaves Insert mode's keys in the typeahead
+function! s:pick(lines) abort
+  call s:spec()['sink*'](a:lines)
+  call g:suite.feed("\<Esc>")
+endfunction
+
+function! s:suite.complete_path_picks_several_with_a_space_between() abort
+  enew!
+  call s:type("i\<C-x>\<C-f>")
+  call assert_match('--multi', string(s:spec().options))
+  call s:pick(['src/a.py', 'tests/b.py'])
+  call assert_equal('src/a.py tests/b.py', getline(1))
+endfunction
+
+" vim-prompts' @files, in an :AiDraft: each file needs its own @
+function! s:suite.complete_path_after_an_at_gives_each_file_its_at() abort
+  enew!
+  call setline(1, '@')
+  call s:type("A\<C-x>\<C-f>")
+  call s:pick(['src/a.py', 'tests/b.py'])
+  call assert_equal('@src/a.py @tests/b.py', getline(1))
+endfunction
+
 function! s:suite.complete_line() abort
   call s:type("o\<C-x>\<C-l>")
   call assert_true(!empty(g:suite.fzf), 'fzf asked')
