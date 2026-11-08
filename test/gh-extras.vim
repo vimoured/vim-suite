@@ -29,7 +29,7 @@ function! s:reset() abort
   silent! %bwipeout!
   unlet! g:gh_extras_pr_authors
   unlet $GH_FAIL $GH_REMOTE
-  call fugitive_extras#comments#clear()
+  CommentsClear
   call delete(s:tmp, 'rf')
   let s:repos += 1
   let s:repo = s:tmp . '/' . s:repos . '/repo'
