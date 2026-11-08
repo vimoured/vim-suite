@@ -73,6 +73,17 @@ function! s:suite.get_and_dir_agree() abort
         \ roumail_place#dir('q', {'bufnr': l:linked, 'worktree': 1}))
 endfunction
 
+" A buffer that isn't a file (a list, a draft) is in the current
+" directory's, whatever its name looks like
+function! s:suite.a_buffer_not_a_file_is_the_current_directorys() abort
+  enew
+  setlocal buftype=nofile
+  execute 'silent file' fnameescape(s:tmp . '/linked/list')
+  call assert_equal({'dir': s:tmp . '/plain', 'repo': 0}, roumail_place#get())
+  execute 'cd' fnameescape(s:tmp . '/repo')
+  call assert_equal(s:tmp . '/repo/.git/p', roumail_place#dir('p'))
+endfunction
+
 function! s:suite.get() abort
   execute 'edit' fnameescape(s:tmp . '/repo/file.txt')
   call assert_equal({'dir': s:tmp . '/repo', 'repo': 1}, roumail_place#get())
