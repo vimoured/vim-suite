@@ -24,7 +24,7 @@ vim-draft         vimoured/vim-draft         frozen
 buffer-tools      vimoured/buffer-tools      frozen
 text-tools        vimoured/text-tools        frozen
 glow-preview      vimoured/glow-preview      frozen
-qf-tools          roumail/qf-tools           frozen
+qf-tools          vimoured/qf-tools          frozen
 dispatch-extras   vimoured/dispatch-extras   frozen
 fzf-utils         roumail/fzf-utils          frozen
 pytest.vim        roumail/pytest.vim         frozen
