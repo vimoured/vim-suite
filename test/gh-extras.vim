@@ -364,6 +364,15 @@ function! s:suite.whole_file_thread_opens_the_file_at_line_1() abort
   call assert_equal(1, line('.'))
 endfunction
 
+function! s:suite.whole_file_thread_on_its_branch_opens_the_work_tree() abort
+  call s:git('checkout -q -b search')
+  Thread 8
+  call s:on('^a\.py ')
+  call s:type("\<CR>")
+  call assert_equal(s:repo . '/a.py', expand('%:p'))
+  call assert_equal(1, line('.'))
+endfunction
+
 function! s:suite.thread_x_resolves_and_unresolves() abort
   Thread 7
   call s:on('^b.py:3 ')
@@ -407,12 +416,19 @@ function! s:suite.reply_draft_posts_when_closed() abort
   call s:type(s:leader . 'cd')
   call assert_equal('gh-extras://reply/7/b.py:3', bufname())
   call assert_equal('markdown', &filetype)
-  call assert_equal(10, winheight(0))
   call assert_equal(3, winnr('$'), 'above the list')
   call setline(1, 'drafted reply')
   write
   quit
   call assert_match('"body":"drafted reply"', s:sent())
+endfunction
+
+function! s:suite.reply_draft_is_10_lines() abort
+  Thread 7
+  call s:on('^b.py:3 ')
+  call s:type(s:leader . 'cd')
+  call assert_equal(10, winheight(0))
+  quit!
 endfunction
 
 function! s:suite.reply_draft_empty_posts_nothing() abort
