@@ -246,6 +246,10 @@ function! s:suite.grep_code_and_tests() abort
   call cursor(1, 5)
   call s:type(s:leader . 'rP')
   call assert_equal('\bfind_me\b', s:query(s:spec()))
+endfunction
+
+" A whole-line selection: the line, without its newline
+function! s:suite.grep_a_whole_line_selection() abort
   call s:type('V' . s:leader . 'rT')
   call assert_equal('\bdef find_me\(\):\b', s:query(s:spec()))
 endfunction

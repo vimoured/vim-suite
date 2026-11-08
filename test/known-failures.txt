@@ -58,3 +58,9 @@ fugitive-extras diff_older_side_on_the_left
 # (both have 'buftype' quickfix), so with one open it runs :cclose and opens
 # nothing (autoload/qf_tools.vim, qf_tools#toggle)
 qf-tools toggle_with_a_location_list_open
+
+# fzf-utils: on a Vim without getregion() (CI's 9.1.0016), a linewise visual
+# selection is yanked with its newline, so the grep pattern ends in \n and
+# finds nothing (autoload/fzf_utils.vim, fzf_utils#word_pattern). Passes on a
+# Vim with getregion(): bin/test warns there that it's listed
+fzf-utils grep_a_whole_line_selection
