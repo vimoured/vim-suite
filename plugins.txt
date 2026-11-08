@@ -18,7 +18,7 @@ vim-dispatch      tpope/vim-dispatch         upstream
 vim-fugitive      tpope/vim-fugitive         upstream
 project-detect    roumail/project-detect     frozen
 vim-place         vimoured/vim-place         frozen
-vim-lists         roumail/vim-lists          frozen
+vim-lists         vimoured/vim-lists         frozen
 vim-review        roumail/vim-review         frozen
 vim-draft         vimoured/vim-draft         frozen
 buffer-tools      vimoured/buffer-tools      frozen
