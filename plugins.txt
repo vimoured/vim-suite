@@ -16,7 +16,7 @@ fzf               junegunn/fzf               upstream
 fzf.vim           junegunn/fzf.vim           upstream
 vim-dispatch      tpope/vim-dispatch         upstream
 vim-fugitive      tpope/vim-fugitive         upstream
-project-detect    roumail/project-detect     frozen
+project-detect    vimoured/project-detect    frozen
 vim-place         vimoured/vim-place         frozen
 vim-lists         vimoured/vim-lists         frozen
 vim-review        vimoured/vim-review        frozen
