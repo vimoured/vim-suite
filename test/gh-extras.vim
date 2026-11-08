@@ -28,6 +28,7 @@ function! s:reset() abort
   silent! only!
   silent! %bwipeout!
   unlet! g:gh_extras_pr_authors
+  unlet $GH_FAIL $GH_REMOTE
   call fugitive_extras#comments#clear()
   call delete(s:tmp, 'rf')
   let s:repos += 1
@@ -83,6 +84,12 @@ function! s:run(cmd) abort
   catch
     return v:exception
   endtry
+endfunction
+
+" Asserts out is gh-extras' message msg, and nothing after it: the command
+" stopped there
+function! s:only_says(msg, out, ...) abort
+  call assert_equal("\ngh-extras: " . a:msg, a:out, get(a:, 1, ''))
 endfunction
 
 " What gh was asked, and sent
@@ -161,6 +168,37 @@ function! s:suite.prs_t_o_r_q() abort
   call assert_notmatch('^gh-extras://', bufname())
 endfunction
 
+function! s:suite.prs_long_names_are_cut_to_their_column() abort
+  let g:gh_extras_pr_authors = s:tmp . '/authors.txt'
+  call writefile(['Samantha Alexandra Longname: sam'], g:gh_extras_pr_authors)
+  PRs
+  call assert_match('^#8 \+Samantha Alexandra L  Add search ', getline(4), '20 columns')
+endfunction
+
+function! s:suite.prs_keys_on_the_heading_do_nothing() abort
+  PRs
+  for l:key in ["\<CR>", 't', 'o']
+    call cursor(1, 1)
+    call assert_notmatch('E\d\+:\|gh-extras:', s:type(l:key), l:key)
+    call assert_equal('gh-extras://prs/repo', bufname(), l:key)
+  endfor
+  call assert_equal('main', s:git('branch --show-current'))
+  call assert_notmatch('pr checkout\|pr view --web', s:sent())
+  MergedPRs
+  call cursor(1, 1)
+  call assert_notmatch('E\d\+:\|gh-extras:', s:type("\<CR>"))
+  call assert_equal('gh-extras://merged-prs/repo', bufname())
+endfunction
+
+function! s:suite.prs_enter_when_the_checkout_fails() abort
+  PRs
+  call s:on('^#7 ')
+  let $GH_FAIL = 'pr checkout*'
+  call s:only_says('gh: error connecting to api.github.com', s:type("\<CR>"))
+  call assert_equal('main', s:git('branch --show-current'))
+  call assert_equal('gh-extras://prs/repo', bufname(), 'the list stays')
+endfunction
+
 " :MergedPRs
 
 function! s:suite.merged_prs() abort
@@ -180,6 +218,23 @@ function! s:suite.merged_prs_enter_shows_the_merge_commit() abort
   call assert_notmatch('E\d\+:\|gh-extras:', s:type("\<CR>"))
   call assert_match('^fugitive://.*//' . s:git('rev-parse main') . '$', bufname())
   call assert_equal(2, winnr('$'), 'in the window above the list')
+endfunction
+
+function! s:suite.enter_with_the_list_the_only_window() abort
+  MergedPRs
+  only
+  call s:on('^#5 ')
+  call s:type("\<CR>")
+  call assert_equal(2, winnr('$'), 'a window is split off')
+  call assert_match('^fugitive://', bufname(), 'the merge commit')
+  call assert_equal('gh-extras://merged-prs/repo', bufname(winbufnr(winnr('j'))), 'above the list')
+  Thread 7
+  only
+  call s:on('^b.py:3 ')
+  call s:type("\<CR>")
+  call assert_equal(2, winnr('$'), 'a window is split off')
+  call assert_match('b\.py$', bufname(), 'the thread''s file')
+  call assert_equal('gh-extras://thread/repo', bufname(winbufnr(winnr('j'))), 'above the list')
 endfunction
 
 function! s:suite.merged_prs_enter_without_the_commit() abort
@@ -247,6 +302,21 @@ function! s:suite.threads() abort
   call cursor(6, 1)
   call s:type('o')
   call assert_match('gh pr view --web 8', s:sent())
+endfunction
+
+function! s:suite.threads_keys_on_a_pr_line() abort
+  Threads
+  call s:on('^#7 ')
+  let l:before = getline(1, '$')
+  for l:key in ['=', "\<CR>", 'x']
+    call assert_notmatch('E\d\+:\|gh-extras:', s:type(l:key), l:key)
+  endfor
+  call assert_equal(l:before, getline(1, '$'), 'nothing opened or resolved')
+  call assert_equal('gh-extras://threads/repo', bufname())
+  call assert_notmatch('esolveReviewThread', s:sent())
+  call assert_match('gh-extras: not on a thread', s:run('Reply thanks'))
+  call assert_match('gh-extras: not on a thread', s:type(s:leader . 'cd'))
+  call assert_notmatch('addPullRequestReviewThreadReply', s:sent())
 endfunction
 
 function! s:suite.thread_enter_on_the_branch_checked_out() abort
@@ -353,6 +423,13 @@ function! s:suite.reply_draft_empty_posts_nothing() abort
   call assert_notmatch('addPullRequestReviewThreadReply', s:sent())
 endfunction
 
+function! s:suite.reply_empty_posts_nothing() abort
+  Thread 7
+  call s:on('^b.py:3 ')
+  call assert_notmatch('Reply\|gh-extras:', s:type(s:leader . "cc\<CR>\<CR>"))
+  call assert_notmatch('addPullRequestReviewThreadReply', s:sent())
+endfunction
+
 function! s:suite.reply_that_fails_is_in_the_unnamed_register() abort
   Thread 7
   call s:on('^b.py:3 ')
@@ -439,6 +516,141 @@ function! s:suite.submit_with_head_not_in_the_pr() abort
   call s:git('commit -q -am unpushed')
   call assert_match('is not in PR 7, and its head .* has these commented files different: b.py; push, or check out the PR',
         \ s:run('CommentsSubmit'))
+endfunction
+
+function! s:suite.submit_without_a_pr_for_the_branch() abort
+  edit! b.py
+  3Comment one line
+  call s:only_says('no PR for this branch; pass its number', s:run('CommentsSubmit'))
+  call assert_notmatch('/reviews', s:sent())
+endfunction
+
+function! s:suite.submit_on_a_branch_with_no_commits() abort
+  call s:git('checkout -q --orphan new')
+  edit! b.py
+  3Comment one line
+  call s:only_says('git: cannot read HEAD or its changes', s:run('CommentsSubmit'))
+endfunction
+
+" GitHub as a bare repo ($GH_REMOTE, a copy of this one), which fetching from
+" origin reaches when url is 'github'; else url, where nothing is
+function! s:github(url) abort
+  let $GH_REMOTE = s:tmp . '/' . s:repos . '/github.git'
+  call system('git clone -q --bare ' . shellescape(s:repo) . ' ' . shellescape($GH_REMOTE))
+  call s:git('config url.' . shellescape(a:url ==# 'github' ? $GH_REMOTE : a:url)
+        \ . '.insteadOf https://github.com/o/r')
+endfunction
+
+" A commit someone else pushed to branch on GitHub (PR #7's head too, for
+" fix-login), adding file; it isn't here
+function! s:pushed(branch, file) abort
+  let l:clone = s:tmp . '/' . s:repos . '/clone'
+  call system('git clone -q -b ' . a:branch . ' ' . shellescape($GH_REMOTE) . ' ' . shellescape(l:clone))
+  call writefile(['new'], l:clone . '/' . a:file)
+  let l:git = 'git -C ' . shellescape(l:clone) . ' '
+  call system(l:git . 'add -A && ' . l:git . 'commit -q -m pushed && ' . l:git . 'push -q origin HEAD:'
+        \ . a:branch . (a:branch ==# 'fix-login' ? ' HEAD:refs/pull/7/head' : ''))
+  return trim(system(l:git . 'rev-parse HEAD'))
+endfunction
+
+function! s:suite.submit_fetches_a_pr_head_not_here() abort
+  call s:on_the_pr_branch()
+  3Comment one line
+  call s:github('github')
+  let l:head = s:pushed('fix-login', 'c.py')
+  call assert_match('Pending review of ' . l:head[:6], s:run('CommentsSubmit'), 'of the PR''s head')
+  call assert_equal(l:head, s:git('rev-parse --verify -q ' . l:head . '^{commit}'), 'fetched')
+endfunction
+
+function! s:suite.submit_when_the_pr_head_cannot_be_fetched() abort
+  call s:on_the_pr_branch()
+  3Comment one line
+  call s:github(s:tmp . '/nowhere.git')
+  let l:head = s:pushed('fix-login', 'c.py')
+  call s:only_says('git: cannot compare HEAD with the PR head ' . l:head[:6], s:run('CommentsSubmit'))
+  call assert_notmatch('/reviews', s:sent())
+endfunction
+
+function! s:suite.submit_when_the_base_cannot_be_fetched() abort
+  call s:on_the_pr_branch()
+  3Comment one line
+  call s:github(s:tmp . '/nowhere.git')
+  call s:pushed('main', 'c.py')
+  call s:only_says('git: cannot read the diff of PR 7 at ' . s:git('rev-parse --short=7 HEAD'),
+        \ s:run('CommentsSubmit'))
+  call assert_notmatch('/reviews', s:sent())
+endfunction
+
+function! s:suite.submit_when_gh_fails() abort
+  call s:on_the_pr_branch()
+  3Comment one line
+  for l:call in ['*pulls/7/commits*', '*pulls/7 --jq*', '*/reviews*']
+    let $GH_FAIL = l:call
+    call s:only_says('gh: error connecting to api.github.com', s:run('CommentsSubmit'), l:call)
+  endfor
+endfunction
+
+" When what gh-extras needs isn't there: a message, nothing else
+
+function! s:suite.outside_a_git_work_tree() abort
+  let l:dir = s:tmp . '/not-a-repo'
+  call mkdir(l:dir, 'p')
+  execute 'cd' fnameescape(l:dir)
+  execute 'edit' fnameescape(l:dir . '/y.txt')
+  for l:cmd in ['PRs', 'MergedPRs', 'Thread 7', 'Threads', 'CommentsSubmit']
+    call s:only_says('not in a git work tree', s:run(l:cmd), l:cmd)
+  endfor
+endfunction
+
+function! s:suite.repo_without_a_remote() abort
+  call s:git('remote remove origin')
+  for l:cmd in ['PRs', 'MergedPRs', 'Thread', 'Threads', 'CommentsSubmit']
+    call s:only_says(':' . l:cmd . ' needs the repo on GitHub, and it has no git remote',
+          \ s:run(l:cmd), l:cmd)
+  endfor
+  call assert_equal('', s:sent(), 'gh not asked')
+endfunction
+
+function! s:suite.lists_when_gh_fails() abort
+  let $GH_FAIL = '*graphql*'
+  for l:cmd in ['PRs', 'MergedPRs', 'Thread 7', 'Threads']
+    call s:only_says('gh: error connecting to api.github.com', s:run(l:cmd), l:cmd)
+    silent! only!
+    silent! %bwipeout!
+  endfor
+  let $GH_FAIL = 'repo view*'
+  call s:only_says('gh: error connecting to api.github.com', s:run('Thread 7'), 'the repo')
+  call assert_notmatch('^gh-extras://', bufname(), 'no list')
+endfunction
+
+function! s:suite.refresh_or_resolve_when_gh_fails_keeps_the_list() abort
+  Thread 7
+  let l:before = getline(1, '$')
+  let $GH_FAIL = '*graphql*'
+  call s:only_says('gh: error connecting to api.github.com', s:type('r'), 'r')
+  call s:on('^b.py:3 ')
+  call s:only_says('gh: error connecting to api.github.com', s:type('x'), 'x: no refresh after')
+  call assert_equal(l:before, getline(1, '$'))
+endfunction
+
+" Each command checks for the plugins it needs (the README's modules)
+function! s:suite.commands_say_which_plugin_they_need() abort
+  let l:rtp = &runtimepath
+  try
+    execute 'set runtimepath-=' . fnameescape(g:suite.deps . '/vim-draft')
+    Thread 7
+    call s:on('^b.py:3 ')
+    call s:only_says(':ReplyDraft needs vim-draft, which is not installed', s:type(s:leader . 'cd'))
+    call assert_equal('gh-extras://thread/repo', bufname(), 'no draft')
+    for l:plugin in ['fugitive-extras', 'vim-place']
+      let &runtimepath = l:rtp
+      execute 'set runtimepath-=' . fnameescape(g:suite.deps . '/' . l:plugin)
+      call s:only_says(':CommentsSubmit needs ' . l:plugin . ', which is not installed',
+            \ s:run('CommentsSubmit'), l:plugin)
+    endfor
+  finally
+    let &runtimepath = l:rtp
+  endtry
 endfunction
 
 function! s:suite.commands_only_with_gh() abort

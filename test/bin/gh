@@ -1,18 +1,29 @@
 #!/bin/sh
 # Stand-in for gh: canned answers to what gh-extras asks, about the repo
 # test/gh-extras.vim builds (GitHub's o/r): open PRs #7 (branch fix-login,
-# whose commits are there) and #8 (head never fetched), merged #5 and #4.
-# @BASE@ and @HEAD7@ are filled from that repo's main and the pushed
-# fix-login (origin/fix-login: local commits aren't on GitHub). Every
-# call, and what was sent on stdin, is appended to $GH_LOG.
+# whose commits are there) and #8 (head never fetched), merged #5 and #4;
+# :Threads also gets #9, whose one thread you're not in.
+# @BASE@ and @HEAD7@ are GitHub's main and fix-login: that repo's main and
+# the pushed fix-login (origin/fix-login: local commits aren't on GitHub), or
+# the branches of $GH_REMOTE, a bare repo, when a test sets one up. Every
+# call, and what was sent on stdin, is appended to $GH_LOG. A call matching
+# $GH_FAIL (a pattern) fails, as gh does when GitHub can't be reached.
 log=${GH_LOG:-/dev/null}
 input=
 case "$*" in *'--input -'*) input=$(cat) ;; esac
 { echo "gh $*"; [ -n "$input" ] && echo "input: $input"; } >>"$log"
 
-rev() { git rev-parse --verify -q "$1" 2>/dev/null || echo 0000000000000000000000000000000000000000; }
-fill() { sed -e "s/@BASE@/$(rev main)/g" -e "s/@HEAD7@/$(rev origin/fix-login)/g"; }
 fail() { echo "$1" >&2; exit 1; }
+if [ -n "$GH_FAIL" ]; then
+  case "$*" in $GH_FAIL) fail 'error connecting to api.github.com' ;; esac
+fi
+rev() {
+  if [ -n "$GH_REMOTE" ]; then git --git-dir="$GH_REMOTE" rev-parse --verify -q "refs/heads/$1"
+  elif [ "$1" = main ]; then git rev-parse --verify -q main
+  else git rev-parse --verify -q "origin/$1"; fi 2>/dev/null ||
+    echo 0000000000000000000000000000000000000000
+}
+fill() { sed -e "s/@BASE@/$(rev main)/g" -e "s/@HEAD7@/$(rev fix-login)/g"; }
 unfetched=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef
 
 case "$*" in
@@ -25,7 +36,7 @@ case "$*" in
   # its mtime, in seconds)
   'pr checkout 7') sleep 1; git checkout -q fix-login ;;
   'pr view --web '*) ;;
-  *'pulls/7/commits'*) rev origin/fix-login ;;
+  *'pulls/7/commits'*) rev fix-login ;;
   *'pulls/7 --jq .base.sha') rev main ;;
   *'pulls/7/reviews'*) echo 'https://github.com/o/r/pull/7#pullrequestreview-1' ;;
   *'states: OPEN, first: $count'*) cat <<'JSON'
@@ -64,6 +75,10 @@ JSON
  "comments":{"nodes":[{"author":{"login":"me"},"body":"pending one","createdAt":"2026-11-01T00:00:00Z","state":"PENDING","originalCommit":{"oid":"@BASE@"}}]}}]}}
 JSON
 )
+        # Sam's, with only sam in its thread: none of yours
+        pr9='{"number":9,"title":"Docs","headRefName":"docs","headRefOid":"'$unfetched'","author":{"login":"sam"},"reviewThreads":{"nodes":[
+{"id":"T9","isResolved":false,"isOutdated":false,"path":"a.py","line":4,"startLine":null,"originalLine":4,"originalStartLine":null,
+ "comments":{"nodes":[{"author":{"login":"sam"},"body":"note to self","createdAt":"2026-11-01T00:00:00Z","state":"SUBMITTED","originalCommit":{"oid":"'$unfetched'"}}]}}]}}'
         pr8=$(fill <<JSON
 {"number":8,"title":"Add search","headRefName":"search","headRefOid":"$unfetched","author":{"login":"sam"},"reviewThreads":{"nodes":[
 {"id":"T6","isResolved":false,"isOutdated":false,"path":"a.py","line":null,"startLine":null,"originalLine":null,"originalStartLine":null,
@@ -73,7 +88,7 @@ JSON
 JSON
 )
         case "$input" in
-          *'pullRequests('*) printf '%s\n' '{"data":{"viewer":{"login":"me"},"repository":{"pullRequests":{"nodes":['"$pr7,$pr8"']}}}}' ;;
+          *'pullRequests('*) printf '%s\n' '{"data":{"viewer":{"login":"me"},"repository":{"pullRequests":{"nodes":['"$pr7,$pr8,$pr9"']}}}}' ;;
           *'"number":8'*) printf '%s\n' '{"data":{"viewer":{"login":"me"},"repository":{"pullRequest":'"$pr8"'}}}' ;;
           *) printf '%s\n' '{"data":{"viewer":{"login":"me"},"repository":{"pullRequest":'"$pr7"'}}}' ;;
         esac ;;
