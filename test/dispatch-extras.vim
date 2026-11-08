@@ -9,6 +9,11 @@ let s:suite = themis#suite('dispatch-extras')
 let s:tmp = resolve(tempname())
 
 function! s:suite.before_each() abort
+  " vim-dispatch's exit callback deletes its terminal's buffer: E516 if wiped
+  for l:buf in filter(term_list(), 'job_status(term_getjob(v:val)) ==# "run"')
+    call job_stop(term_getjob(l:buf), 'kill')
+  endfor
+  call s:wait('empty(filter(term_list(), ''job_status(term_getjob(v:val)) ==# "run"''))', 'the terminals to end')
   silent! tabonly!
   silent! only!
   silent! %bwipeout!
