@@ -1,6 +1,7 @@
 " qf-tools: its keys in quickfix and location-list windows (dd, 3dd, visual
 " d, u) and the User QfToolsChanged event vim-prompts listens to, the toggle,
-" :QfSave / :QfLoad, and its README, through its commands and keys.
+" :QfSave / :QfLoad (which work as vim-draft's :DraftSave), and its README,
+" through its commands and keys.
 let g:suite_spec = expand('<sfile>')
 execute 'source' fnameescape(expand('<sfile>:p:h') . '/helper/env.vim')
 let s:suite = themis#suite('qf-tools')
@@ -159,11 +160,13 @@ endfunction
 
 function! s:suite.toggle() abort
   call s:five()
-  QfToggle
+  call s:type("\<Plug>(qf-tools-toggle)")
   call assert_equal(['quickfix', 2], [&buftype, winnr('$')])
   wincmd p
-  QfToggle
+  call s:type("\<Plug>(qf-tools-toggle)")
   call assert_equal(1, winnr('$'))
+  QfToggle
+  call assert_equal(2, winnr('$'))
 endfunction
 
 " A location list window isn't the quickfix window
@@ -205,13 +208,15 @@ endfunction
 
 function! s:suite.save_and_load_say_how_many() abort
   call s:list()
-  call assert_equal("\nQfSave: 3 entries to wip", s:message('QfSave wip'))
-  call assert_equal("\nQfLoad: 3 entries from wip", s:message('QfLoad wip'))
+  let l:wip = fnamemodify(s:repo . '/.git/qf-tools/wip.json', ':~')
+  call assert_equal("\nQfSave: wrote " . l:wip . ' (3 entries)', s:message('QfSave wip'))
+  call assert_equal("\nQfLoad: read " . l:wip . ' (3 entries)', s:message('QfLoad wip'))
   call assert_equal('quickfix', &buftype, 'the list open')
   execute 'cd' fnameescape(s:tmp)
-  call assert_equal("\nQfSave: 3 entries to " . fnamemodify(s:tmp . '/k.json', ':~'), s:message('QfSave ./k.json'))
-  call assert_equal("\nQfSave: 3 entries to " . fnamemodify(s:tmp . '/.k.json', ':~'), s:message('QfSave .k.json'),
-        \ 'starting with .: a path')
+  call assert_equal("\nQfSave: wrote " . fnamemodify(s:tmp . '/k.json', ':~') . ' (3 entries)',
+        \ s:message('QfSave ./k.json'))
+  call assert_equal("\nQfSave: wrote " . fnamemodify(s:tmp . '/.k.json', ':~') . ' (3 entries)',
+        \ s:message('QfSave .k.json'), 'starting with .: a path')
 endfunction
 
 " A plugin's buffer (fugitive://) is kept as named, and a file outside the
@@ -227,6 +232,71 @@ function! s:suite.save_keeps_other_names() abort
         \ map(getqflist(), 'bufname(v:val.bufnr)'))
 endfunction
 
+" With no name or path: a new file, then the same one again; and the file a
+" list was loaded from
+function! s:suite.save_with_no_argument() abort
+  call s:list()
+  silent QfSave
+  let l:saves = glob(s:repo . '/.git/qf-tools/*.json', 1, 1)
+  call assert_equal(1, len(l:saves))
+  call assert_match('/\d\{8}-\d\{6}\.json$', l:saves[0])
+  call assert_match('"filename":"tests/a.py"', readfile(l:saves[0])[0], 'paths the work tree''s')
+  copen
+  call s:type('dd')
+  silent QfSave
+  call assert_equal(l:saves, glob(s:repo . '/.git/qf-tools/*.json', 1, 1), 'the same file')
+  call assert_equal(2, len(json_decode(readfile(l:saves[0])[0]).items))
+  " Another list: a file of its own, even in the same second
+  call setqflist([], ' ', {'title': 'Other', 'items': [{'text': 'o'}]})
+  silent QfSave
+  call assert_equal(2, len(glob(s:repo . '/.git/qf-tools/*.json', 1, 1)))
+  " Loaded, a list saves back to its file
+  let l:file = s:tmp . '/kept.json'
+  execute 'silent QfSave' fnameescape(l:file)
+  execute 'silent QfLoad' fnameescape(l:file)
+  copen
+  call s:type('dd')
+  silent QfSave
+  call assert_equal(0, len(json_decode(readfile(l:file)[0]).items))
+endfunction
+
+function! s:suite.save_to_a_directory() abort
+  call s:list()
+  execute 'silent QfSave' fnameescape(s:tmp . '/lists/')
+  call mkdir(s:tmp . '/existing')
+  execute 'silent QfSave' fnameescape(s:tmp . '/existing')
+  call assert_match('/lists/\d\{8}-\d\{6}\.json$', get(glob(s:tmp . '/lists/*', 1, 1), 0, ''))
+  call assert_equal(1, len(glob(s:tmp . '/existing/*.json', 1, 1)))
+  call assert_match('"filename":"' . escape(s:repo, '/') . '/tests/a.py"',
+        \ readfile(glob(s:tmp . '/existing/*.json', 1, 1)[0])[0], 'absolute paths')
+endfunction
+
+function! s:suite.load_with_no_argument_the_newest() abort
+  call s:list()
+  silent QfSave older
+  call setqflist([], ' ', {'title': 'Newer', 'items': [{'text': 'n'}]})
+  sleep 1100m
+  silent QfSave newer
+  call setqflist([], ' ', {'title': 'other', 'items': []})
+  call assert_match('^\nQfLoad: read .*newer\.json (1 entries)$', s:message('QfLoad'))
+  call assert_equal('Newer', getqflist({'title': 1}).title)
+endfunction
+
+" A path saved to before needs no !; a failed write loses nothing
+function! s:suite.save_again_to_a_path_and_failing() abort
+  call s:list()
+  let l:file = s:tmp . '/kept.json'
+  execute 'silent QfSave' fnameescape(l:file)
+  call assert_match('^\nQfSave: wrote ', s:message('QfSave ' . fnameescape(l:file)), 'its own file')
+  call mkdir(s:tmp . '/locked')
+  call setfperm(s:tmp . '/locked', 'r-xr-xr-x')
+  call assert_match('E482: ', s:message('QfSave ' . fnameescape(s:tmp . '/locked/x.json')))
+  call setfperm(s:tmp . '/locked', 'rwxr-xr-x')
+  call assert_equal(['Tests', 3], [getqflist({'title': 1}).title, len(getqflist())], 'the list as it was')
+  silent QfSave
+  call assert_equal([], glob(s:tmp . '/locked/*', 1, 1), 'not taken for its file')
+endfunction
+
 function! s:suite.a_name_is_saved_again() abort
   call s:list()
   silent QfSave wip
@@ -238,9 +308,12 @@ endfunction
 
 function! s:suite.names_complete() abort
   call s:list()
-  silent QfSave wip
   silent QfSave work
-  call assert_equal(['wip', 'work'], getcompletion('QfLoad w', 'cmdline'))
+  sleep 1100m
+  silent QfSave wip
+  call assert_equal(['wip', 'work'], getcompletion('QfLoad w', 'cmdline'), 'newest first')
+  call system('touch -t 202001010000 ' . shellescape(s:repo . '/.git/qf-tools/wip.json'))
+  call assert_equal(['work', 'wip'], getcompletion('QfLoad w', 'cmdline'))
   call assert_equal(['wip'], getcompletion('QfSave wi', 'cmdline'))
   call assert_equal(['./b.py'], getcompletion('QfLoad ./b', 'cmdline'), 'a path: files')
 endfunction
@@ -261,7 +334,7 @@ function! s:suite.a_path_is_kept_without_bang() abort
   call s:list()
   let l:file = s:tmp . '/kept.json'
   call writefile(['mine'], l:file)
-  call assert_equal("\nqf-tools: " . fnamemodify(l:file, ':~') . ' exists (add ! to overwrite)',
+  call assert_equal('Vim(echoerr):QfSave: ' . fnamemodify(l:file, ':~') . ' exists (add ! to overwrite)',
         \ s:message('QfSave ' . fnameescape(l:file)))
   call assert_equal(['mine'], readfile(l:file))
   execute 'silent QfSave!' fnameescape(l:file)
@@ -271,7 +344,7 @@ endfunction
 function! s:suite.context_not_json_is_left_out() abort
   call setqflist([], ' ', {'title': 'F', 'context': {'f': function('tr')}, 'items': [
         \ {'filename': s:repo . '/b.py', 'lnum': 1}]})
-  call assert_match('1 context(s) not JSON, left out', s:message('QfSave wip'))
+  call assert_match(' (1 entries, 1 context(s) not JSON, left out)$', s:message('QfSave wip'))
   silent QfLoad wip
   call assert_equal('F', getqflist({'title': 1}).title)
   call assert_equal(1, len(getqflist()))
@@ -281,18 +354,20 @@ function! s:suite.entry_data_not_json_is_left_out() abort
   call setqflist([], ' ', {'title': 'F', 'items': [
         \ {'filename': s:repo . '/b.py', 'lnum': 1, 'user_data': function('tr')},
         \ {'filename': s:repo . '/b.py', 'lnum': 1, 'user_data': {'kept': 1}}]})
-  call assert_equal("\nQfSave: 2 entries to wip (1 context(s) not JSON, left out)", s:message('QfSave wip'))
+  call assert_match(' (2 entries, 1 context(s) not JSON, left out)$', s:message('QfSave wip'))
   silent QfLoad wip
   call assert_equal(['', {'kept': 1}], map(getqflist(), 'v:val.user_data'))
 endfunction
 
 function! s:suite.load_errors() abort
-  call assert_equal("\nqf-tools: no saved list nope", s:message('QfLoad nope'))
-  call assert_equal("\nqf-tools: no " . fnamemodify(s:tmp . '/none.json', ':~'),
+  call assert_equal('Vim(echoerr):QfLoad: no saved list nope', s:message('QfLoad nope'))
+  call assert_equal('Vim(echoerr):QfLoad: no ' . fnamemodify(s:tmp . '/none.json', ':~'),
         \ s:message('QfLoad ' . fnameescape(s:tmp . '/none.json')))
+  call assert_equal('Vim(echoerr):QfLoad: nothing saved in ' . fnamemodify(s:repo . '/.git/qf-tools', ':~'),
+        \ s:message('QfLoad'))
   for l:text in ['{}', 'not json']
     call writefile([l:text], s:tmp . '/other.json')
-    call assert_equal("\nqf-tools: " . fnamemodify(s:tmp . '/other.json', ':~') . ' is not a list :QfSave wrote',
+    call assert_equal('Vim(echoerr):QfLoad: ' . fnamemodify(s:tmp . '/other.json', ':~') . ' is not a list :QfSave wrote',
           \ s:message('QfLoad ' . fnameescape(s:tmp . '/other.json')), l:text)
   endfor
   call assert_equal([], getqflist(), 'nothing loaded')
@@ -302,10 +377,12 @@ function! s:suite.a_name_needs_vim_place() abort
   let l:rtp = &runtimepath
   execute 'set runtimepath-=' . fnameescape(s:place)
   try
-    call assert_equal("\nqf-tools: :QfSave of a name needs vim-place (with vim-fugitive), which is not installed; give a path (./wip.json)",
-          \ s:message('QfSave wip'))
-    call assert_equal("\nqf-tools: :QfLoad of a name needs vim-place (with vim-fugitive), which is not installed; give a path (./wip.json)",
-          \ s:message('QfLoad wip'))
+    for [l:cmd, l:what] in [['QfSave wip', ':QfSave of a name'], ['QfLoad wip', ':QfLoad of a name'],
+          \ ['QfSave', ':QfSave without a path'], ['QfLoad', ':QfLoad without a path']]
+      call assert_equal("\nqf-tools: " . l:what . ' needs vim-place (with vim-fugitive), which is not installed',
+            \ s:message(l:cmd), l:cmd)
+    endfor
+    call assert_match('^\nQfSave: wrote ', s:message('QfSave ./k.json'), 'a path needs no vim-place')
     call assert_equal(['./b.py'], getcompletion('QfLoad ./b', 'cmdline'), 'paths still complete')
   finally
     let &runtimepath = l:rtp
