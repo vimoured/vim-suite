@@ -1,5 +1,4 @@
-# pytest for pytest.vim's spec, which runs real tests through the dotfiles'
-# chkpyt.sh. Installed into deps/python on top of test/requirements.txt: by
+# pytest for pytest.vim's spec, which runs real tests. Installed into deps/python on top of test/requirements.txt: by
 # bin/fetch here, and on CI only when the pull request is Python-related
 # (.github/workflows/suite.yml). Without it those tests are TODO skips.
 pytest==9.1.1

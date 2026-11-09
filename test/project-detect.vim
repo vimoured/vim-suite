@@ -1,6 +1,6 @@
 " project-detect: the project Vim starts in, as the plugins that build on it
 " ask for it (fzf-utils, pytest.vim): project_detect#active(), #name(),
-" #language(), #root(), #sources(), #tests(), #is_test(), #runner(), and
+" #language(), #root(), #sources(), #tests(), #is_test(), and
 " #register() for more project types; and its README.
 "
 " It detects once a Vim, at VimEnter, so every case starts its own Vim (the
@@ -417,29 +417,6 @@ function! s:suite.detected_when_first_asked() abort
           \   'call project_detect#' . l:fn . '()',
           \   'cd ' . fnameescape(l:elsewhere)]}))
   endfor
-endfunction
-
-function! s:suite.runner() abort
-  let l:answer = s:started_in(s:project('runner', {}), {'ask': {
-        \ 'python': 'project_detect#runner("python")',
-        \ 'go': 'project_detect#runner("go")',
-        \ 'other': 'project_detect#runner("rust")'}})
-  " The dotfiles' g:project_detect_runners
-  call s:answers({'python': {'run': 'chkpyt.sh', 'debug': 'chkpyt.sh --no-default-addopts'},
-        \ 'go': {'run': 'go test', 'debug': 'go test'},
-        \ 'other': {}},
-        \ l:answer)
-  " Set later, read when asked; debug defaults to run
-  call s:answers({'python': {'run': 'pytest -x', 'debug': 'pytest -x'},
-        \ 'go': {'run': 'go test', 'debug': 'dlv test'}},
-        \ s:started_in(s:project('runner', {}), {
-        \   'after': ['let g:project_detect_runners = {"python": {"run": "pytest -x"}, "go": {"debug": "dlv test"}}'],
-        \   'ask': {'python': 'project_detect#runner("python")', 'go': 'project_detect#runner("go")'}}))
-  " Without the dotfiles' setting
-  call s:answers({'python': {'run': 'pytest', 'debug': 'pytest'}},
-        \ s:started_in(s:project('runner', {}), {
-        \   'after': ['unlet g:project_detect_runners'],
-        \   'ask': {'python': 'project_detect#runner("python")'}}))
 endfunction
 
 let s:mine = 'call project_detect#register("mine", {"detect": {-> filereadable(".mine")'
