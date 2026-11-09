@@ -2,7 +2,7 @@
 " in test files and in the test lists, :RunPytest, :TracePytest, :PytestTests,
 " :PytestOutline, :ParsePytestFailures, qf-tools' dd / :QfSave / :QfLoad on
 " the lists), with real runs: pytest from deps/python, with the dotfiles'
-" g:pytest_command and g:pytest_debug_command, dispatched by vim-dispatch. A
+" g:pytest_command, dispatched by vim-dispatch. A
 " conftest.py records the tests pytest ran. Without pytest in deps/python (CI
 " installs it for Python-related pull requests only) the runs are TODO skips.
 "
@@ -221,8 +221,8 @@ function! s:suite.trace_keys() abort
   edit tests/test_sample.py
   call cursor(7, 1)
   call s:type(s:lead . 'tf')
-  call assert_match('pytest tests/test_sample\.py::test_one --trace', s:traced(),
-        \ 'the dotfiles'' debug command, in a terminal')
+  call assert_match('pytest .*tests/test_sample\.py::test_one --trace', s:traced(),
+        \ 'in a terminal')
   call cursor(19, 1)
   call s:type(s:lead . 'tm')
   call assert_match('tests/test_sample\.py::TestThing::test_b --trace', s:traced())
@@ -243,8 +243,8 @@ function! s:suite.debug_keys() abort
     edit tests/test_broken.py
     call cursor(6, 1)
     call s:type(s:lead . 'df')
-    call assert_match('pytest tests/test_broken\.py::test_f --pdb', s:traced(),
-          \ 'the dotfiles'' debug command, in a terminal')
+    call assert_match('pytest .*tests/test_broken\.py::test_f --pdb', s:traced(),
+          \ 'in a terminal')
     call cursor(3, 1)
     call s:type(s:lead . 'dm')
     call assert_match('tests/test_broken\.py::TestBroken::test_m --pdb', s:traced())
@@ -341,7 +341,7 @@ function! s:suite.trace_pytest_with_arguments() abort
   call s:needs_pytest()
   edit tests/test_sample.py
   call s:type(":TracePytest -k test_one\<CR>")
-  call assert_match('pytest -k test_one --trace', s:traced())
+  call assert_match('pytest .*-k test_one --trace', s:traced())
 endfunction
 
 function! s:suite.tests_list_needs_project_detect() abort
@@ -363,25 +363,30 @@ function! s:suite.trace_without_project_detect() abort
   try
     execute 'set runtimepath-=' . fnameescape(g:suite.deps . '/project-detect')
     call s:type(":TracePytest -k test_one\<CR>")
-    call assert_match('pytest -k test_one --trace', s:traced())
+    call assert_match('pytest .*-k test_one --trace', s:traced())
   finally
     let &runtimepath = l:rtp
   endtry
 endfunction
 
-" pytest, unless set; debugging runs what running does, unless set. Read when
-" asked, so setting them later counts
-function! s:suite.commands_default_and_can_be_set() abort
-  let [l:run, l:debug] = [g:pytest_command, g:pytest_debug_command]
+" pytest, unless set, and a --trace session runs the same. Read when asked, so
+" setting it later counts
+function! s:suite.command_defaults_and_can_be_set() abort
+  call s:needs_pytest()
+  edit tests/test_sample.py
+  let l:saved = get(g:, 'pytest_command', '')
   try
-    unlet g:pytest_command g:pytest_debug_command
-    call assert_equal(['pytest', 'pytest'], [pytest#command(), pytest#debug_command()])
+    unlet! g:pytest_command
+    call assert_equal('pytest', pytest#command())
     let g:pytest_command = 'pytest -x'
-    call assert_equal(['pytest -x', 'pytest -x'], [pytest#command(), pytest#debug_command()])
-    let g:pytest_debug_command = 'pytest --pdbcls=x'
-    call assert_equal(['pytest -x', 'pytest --pdbcls=x'], [pytest#command(), pytest#debug_command()])
+    call assert_equal('pytest -x', pytest#command())
+    call s:type(":TracePytest -k test_one\<CR>")
+    call assert_match('pytest -x -k test_one --trace', s:traced())
   finally
-    let [g:pytest_command, g:pytest_debug_command] = [l:run, l:debug]
+    unlet! g:pytest_command
+    if !empty(l:saved)
+      let g:pytest_command = l:saved
+    endif
   endtry
 endfunction
 
