@@ -1,5 +1,5 @@
-" pytest.vim: what the dotfiles use of it (maplocalleader _: _r* and _t* in
-" test files and in the test lists, :RunPytest, :TracePytest, :PytestTests,
+" pytest.vim: what the dotfiles use of it (maplocalleader _: _r*, _t* and _d*
+" in test files and in the test lists, :RunPytest, :TracePytest, :PytestTests,
 " :PytestOutline, :ParsePytestFailures, qf-tools' dd / :QfSave / :QfLoad on
 " the lists), with real runs: pytest from deps/python, through the dotfiles'
 " chkpyt.sh (g:project_detect_runners), dispatched by vim-dispatch. A
@@ -232,6 +232,31 @@ function! s:suite.trace_keys() abort
   call assert_match('tests/test_sample\.py --trace', s:traced())
 endfunction
 
+" --pdb stops only at a failure, so these tests fail
+let s:broken = ['class TestBroken:', '    def test_m(self):', '        assert 0', '',
+      \ 'def test_f():', '    assert 0']
+
+function! s:suite.debug_keys() abort
+  call s:needs_pytest()
+  call writefile(s:broken, s:root . '/tests/test_broken.py')
+  try
+    edit tests/test_broken.py
+    call cursor(6, 1)
+    call s:type(s:lead . 'df')
+    call assert_match('chkpyt\.sh --no-default-addopts tests/test_broken\.py::test_f --pdb', s:traced(),
+          \ 'the dotfiles'' debug command, in a terminal')
+    call cursor(3, 1)
+    call s:type(s:lead . 'dm')
+    call assert_match('tests/test_broken\.py::TestBroken::test_m --pdb', s:traced())
+    call s:type(s:lead . 'dc')
+    call assert_match('tests/test_broken\.py::TestBroken --pdb', s:traced())
+    call s:type(s:lead . 'dt')
+    call assert_match('tests/test_broken\.py --pdb', s:traced())
+  finally
+    call delete(s:root . '/tests/test_broken.py')
+  endtry
+endfunction
+
 function! s:end_terminals() abort
   for l:buf in term_list()
     call job_stop(term_getjob(l:buf), 'kill')
@@ -287,8 +312,9 @@ endfunction
 function! s:suite.keys_only_in_test_files() abort
   edit tests/test_sample.py
   call assert_notequal('', maparg(s:lead . 'rm', 'n'))
+  call assert_notequal('', maparg(s:lead . 'df', 'n'))
   edit src/pkg/code.py
-  call assert_equal(['', ''], [maparg(s:lead . 'rm', 'n'), maparg(s:lead . 'tf', 'n')])
+  call assert_equal(['', '', ''], [maparg(s:lead . 'rm', 'n'), maparg(s:lead . 'tf', 'n'), maparg(s:lead . 'df', 'n')])
 endfunction
 
 """ Commands
@@ -408,6 +434,14 @@ function! s:suite.tests_list_keys() abort
         \ 'a method has no function scope, as in the file')
   call s:type(s:lead . 'tm')
   call assert_match('TestThing::test_b --trace', s:traced())
+endfunction
+
+function! s:suite.tests_list_debug_keys() abort
+  call s:needs_pytest()
+  PytestTests
+  call s:on('tests/test_other.py::test_fails')
+  call s:type(s:lead . 'df')
+  call assert_match('tests/test_other\.py::test_fails --pdb', s:traced())
 endfunction
 
 function! s:suite.outline() abort
