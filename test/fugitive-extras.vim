@@ -142,6 +142,30 @@ function! s:suite.diff_this_index_and_work_tree() abort
   call assert_equal([':0', 'work tree'], s:diff_revs())
 endfunction
 
+" The cursor stays on the file; dp there stages that hunk, with nothing to write
+function! s:suite.diff_this_dp_stages_a_hunk() abort
+  call writefile(['ONE', 'two', 'THREE'], s:repo . '/a.txt')
+  edit a.txt
+  DiffThis
+  call assert_equal(s:repo . '/a.txt', expand('%:p'), 'on the file')
+  call cursor(1, 1)
+  call assert_equal('', s:type('dp'))
+  call assert_equal("ONE\ntwo\nthree", s:git('show', ':a.txt'), 'the first hunk only')
+  call assert_equal(['ONE', 'two', 'THREE'], readfile(s:repo . '/a.txt'), 'the file is as it was')
+  let l:index = filter(s:diff_wins(), 'bufname(winbufnr(v:val)) =~# "^fugitive://"')
+  call assert_false(getbufvar(winbufnr(l:index[0]), '&modified'), 'the index is written')
+endfunction
+
+" With the diff closed, dp is Vim's again
+function! s:suite.dp_after_diff_this_closes() abort
+  call writefile(['ONE', 'two', 'three'], s:repo . '/a.txt')
+  edit a.txt
+  DiffThis
+  DiffClose
+  call assert_match('E99', s:type('dp'))
+  call assert_equal("one\ntwo\nthree", s:git('show', ':a.txt'), 'nothing staged')
+endfunction
+
 " What the branch changes in this file, not what main got since it forked
 function! s:suite.diff_this_bang_from_the_merge_base() abort
   call s:feature()
