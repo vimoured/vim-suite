@@ -18,5 +18,5 @@ fzf-utils-cd-into-project grep_code_after_cd_into_the_project
 # fail against the other at main. Only while those land, then remove these
 pytest.vim run_the_method
 pytest.vim dispatch_runs_pytest
-pytest.vim commands_default_and_can_be_set
+pytest.vim command_defaults_and_can_be_set
 pytest.vim parse_failures
