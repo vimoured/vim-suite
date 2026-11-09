@@ -1,13 +1,20 @@
-" fzf-utils in a project of more than one language, even with a name from its
-" .vim.custom: no project, an error at startup, and the scope keys have no
-" scope to search.
+" Like ruff: Rust crates with Python test data in them, beside a Python package
 let s:tmp = resolve(tempname())
 let s:root = s:tmp . '/mixed'
-call mkdir(s:root . '/blog', 'p')
-call writefile([], s:root . '/requirements.txt')
-call writefile(['module example.com/app'], s:root . '/go.mod')
-call writefile(['let g:project_name = "blog"'], s:root . '/.vim.custom')
-call writefile(['def find_me(): pass'], s:root . '/blog/views.py')
+for [s:path, s:lines] in items({
+      \ 'pyproject.toml': ['[project]', 'name = "mixed"', '[tool.maturin]', 'python-source = "python"', 'module-name = "mixed"'],
+      \ 'Cargo.toml': ['[workspace]', 'members = ["crates/*"]'],
+      \ 'crates/core/Cargo.toml': ['[package]', 'name = "core"'],
+      \ 'crates/core/src/lib.rs': ['fn find_me() {}'],
+      \ 'crates/core/tests/it.rs': ['fn find_me() {}'],
+      \ 'crates/core/resources/fixture.py': ['def find_me(): pass'],
+      \ 'python/mixed/__init__.py': ['def find_me(): pass'],
+      \ 'python/mixed/test_it.py': ['def find_me(): pass'],
+      \ 'notes.txt': ['find_me in the notes'],
+      \ })
+  call mkdir(fnamemodify(s:root . '/' . s:path, ':h'), 'p')
+  call writefile(s:lines, s:root . '/' . s:path)
+endfor
 execute 'cd' fnameescape(s:root)
 
 let g:suite_spec = expand('<sfile>')
@@ -17,7 +24,7 @@ let s:leader = get(g:, 'mapleader', '\')
 
 function! s:suite.before_each() abort
   let g:suite.fzf = []
-  edit blog/views.py
+  edit python/mixed/__init__.py
 endfunction
 
 function! s:suite.after() abort
@@ -25,12 +32,63 @@ function! s:suite.after() abort
   call delete(s:tmp, 'rf')
 endfunction
 
-function! s:suite.startup_says_so() abort
-  call assert_match('more than one language', execute('messages'))
+function! s:type(keys) abort
+  return execute('call g:suite.feed(' . string(a:keys) . ')')
 endfunction
 
-function! s:suite.grep_code_has_no_scope() abort
-  call assert_equal("\nGrep: no scope \"project\" in this project",
-        \ execute('call g:suite.feed(' . string(s:leader . 'rp') . ')'))
-  call assert_equal([], g:suite.fzf, 'no grep')
+function! s:spec() abort
+  return get(g:suite.fzf, -1, {})
+endfunction
+
+function! s:matched() abort
+  " Up to the -e that takes the query: several quoted paths have ' ' in them
+  return uniq(sort(map(systemlist('cd ' . shellescape(s:root) . ' && '
+        \ . substitute(matchstr(type(s:spec().options) == v:t_list ? join(s:spec().options, ' ') : s:spec().options,
+        \   "'start:reload:\\zs.\\{-} -e \\ze"), "'\\\\''", "'", 'g') . 'find_me'),
+        \ 'matchstr(substitute(v:val, "\\e\\[[0-9;]*m", "", "g"), "^[^:]*")')))
+endfunction
+
+function! s:suite.startup_has_no_error() abort
+  call assert_notmatch('more than one language', execute('messages'))
+endfunction
+
+function! s:suite.scopes_have_each_language() abort
+  call s:type(s:leader . 'rs')
+  call assert_equal(['all', 'project', 'project python', 'project rust',
+        \ 'tests', 'tests python', 'tests rust'], s:spec().source)
+endfunction
+
+function! s:suite.project_scope_is_every_languages_code() abort
+  call s:type(s:leader . 'rs')
+  call s:spec().sink('project')
+  call assert_equal(['crates/core/resources/fixture.py', 'crates/core/src/lib.rs',
+        \ 'crates/core/tests/it.rs', 'python/mixed/__init__.py', 'python/mixed/test_it.py'], s:matched())
+endfunction
+
+function! s:suite.grep_code_is_the_current_files_language() abort
+  call s:type(s:leader . 'rp')
+  call assert_equal(['python/mixed/__init__.py', 'python/mixed/test_it.py'], s:matched())
+  edit crates/core/src/lib.rs
+  let g:suite.fzf = []
+  call s:type(s:leader . 'rp')
+  call assert_equal(['crates/core/src/lib.rs', 'crates/core/tests/it.rs'], s:matched())
+endfunction
+
+function! s:suite.grep_tests_is_the_current_files_language() abort
+  edit crates/core/src/lib.rs
+  call s:type(s:leader . 'rt')
+  call assert_equal(['crates/core/tests/it.rs'], s:matched())
+endfunction
+
+function! s:suite.test_data_searches_its_crate() abort
+  edit crates/core/resources/fixture.py
+  call s:type(s:leader . 'rp')
+  call assert_equal(['crates/core/src/lib.rs', 'crates/core/tests/it.rs'], s:matched())
+endfunction
+
+function! s:suite.a_file_of_no_language_searches_them_all() abort
+  edit notes.txt
+  call s:type(s:leader . 'rp')
+  call assert_equal(['crates/core/resources/fixture.py', 'crates/core/src/lib.rs',
+        \ 'crates/core/tests/it.rs', 'python/mixed/__init__.py', 'python/mixed/test_it.py'], s:matched())
 endfunction

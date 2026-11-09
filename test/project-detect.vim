@@ -1,7 +1,7 @@
 " project-detect: the project Vim starts in, as the plugins that build on it
 " ask for it (fzf-utils, pytest.vim): project_detect#active(), #name(),
-" #language(), #root(), #sources(), #tests(), #is_test(), and
-" #register() for more project types; and its README.
+" #root(), #parts(), #part(), #is_test(), and #register() for more project
+" types; and its README.
 "
 " It detects once a Vim, at VimEnter, so every case starts its own Vim (the
 " suite's startup, test/helper/env.vim) in a project made for it, and reads
@@ -35,13 +35,15 @@ function! s:project(name, files) abort
   return l:root
 endfunction
 
+let s:first = 'get(project_detect#parts(), 0, {})'
 let s:asked = {
       \ 'active': 'project_detect#active()',
       \ 'name': 'project_detect#name()',
-      \ 'language': 'project_detect#language()',
+      \ 'language': 'get(' . s:first . ', "language", "")',
       \ 'root': 'project_detect#root()',
-      \ 'sources': 'project_detect#sources()',
-      \ 'tests': 'project_detect#tests()',
+      \ 'sources': 'get(' . s:first . ', "sources", [])',
+      \ 'tests': 'get(' . s:first . ', "tests", [])',
+      \ 'languages': 'map(project_detect#parts(), "v:val.language")',
       \ }
 
 " What a Vim started in dir answers: s:asked, and opts.ask ({key: expr}).
@@ -159,7 +161,7 @@ function! s:suite.python_named_after_its_only_package() abort
         \ s:started_in(l:root))
 endfunction
 
-" No name anywhere: not a project, until g:project_name names it
+" From below, the file found may not be this project's
 function! s:suite.python_without_a_name() abort
   let l:root = s:project('py-nameless', {
         \ 'pyproject.toml': [],
@@ -167,9 +169,11 @@ function! s:suite.python_without_a_name() abort
         \ 'a/__init__.py': [],
         \ 'b/__init__.py': [],
         \ })
-  call s:answers({'active': '', 'name': '', 'root': '', 'language': '',
-        \ 'sources': [], 'tests': []},
+  call s:answers({'active': 'python', 'name': 'py-nameless', 'root': l:root, 'language': 'python',
+        \ 'sources': ['src/'], 'tests': s:python_tests},
         \ s:started_in(l:root))
+  call s:answers({'active': '', 'name': '', 'root': '', 'language': '', 'sources': [], 'tests': []},
+        \ s:started_in(l:root . '/a'))
   call s:answers({'active': 'python', 'name': 'named', 'root': l:root, 'sources': ['src/']},
         \ s:started_in(l:root, {'before': ['let g:project_name = "named"']}))
 endfunction
@@ -210,28 +214,154 @@ function! s:suite.project_name_alone_with_no_folder_is_an_error() abort
   call assert_match('g:project_name "blgo"', l:answer.messages)
 endfunction
 
-" More than one language is no project, and says so; a name doesn't change that
-function! s:suite.more_than_one_language_is_an_error() abort
+function! s:suite.more_than_one_language_is_one_project() abort
   let l:go = ['module example.com/app']
-  for [l:name, l:files] in [
-        \ ['py-go', {'pyproject.toml': ['[project]', 'name = "p"'], 'go.mod': l:go}],
-        \ ['req-go', {'requirements.txt': [], 'pkg/__init__.py': [], 'go.mod': l:go}],
-        \ ['py-vim', {'setup.py': [], 'pkg/__init__.py': [], 'plugin/a.vim': []}],
-        \ ['go-vim', {'go.mod': l:go, 'plugin/a.vim': []}]]
-    for l:before in [[], ['let g:project_name = "pkg"']]
-      let l:answer = s:started_in(s:project(l:name, l:files), {'before': l:before, 'ask': {'messages': 'execute("messages")'}})
-      call s:answers({'active': '', 'name': '', 'language': '', 'root': '', 'sources': [], 'tests': []}, l:answer)
-      call assert_match('more than one language', l:answer.messages, l:name)
-    endfor
+  for [l:name, l:files, l:expected] in [
+        \ ['py-go', {'pyproject.toml': ['[project]', 'name = "p"'], 'go.mod': l:go},
+        \   {'active': 'python', 'name': 'p', 'languages': ['python', 'go']}],
+        \ ['req-go', {'requirements.txt': [], 'pkg/__init__.py': [], 'go.mod': l:go},
+        \   {'active': 'python', 'name': 'pkg', 'sources': ['pkg/'], 'languages': ['python', 'go']}],
+        \ ['py-vim', {'setup.py': [], 'pkg/__init__.py': [], 'plugin/a.vim': []},
+        \   {'active': 'python', 'name': 'pkg', 'languages': ['python', 'vim']}],
+        \ ['go-vim', {'go.mod': l:go, 'plugin/a.vim': []},
+        \   {'active': 'go', 'name': 'app', 'languages': ['go', 'vim']}]]
+    let l:root = s:project(l:name, l:files)
+    let l:answer = s:started_in(l:root, {'ask': s:messages})
+    call s:answers(extend({'root': l:root}, l:expected), l:answer)
+    call assert_notmatch('more than one language', l:answer.messages, l:name)
   endfor
 endfunction
 
-" A strategy of your own isn't a second language
-function! s:suite.registered_type_is_no_second_language() abort
+function! s:suite.project_name_names_every_language() abort
+  let l:answer = s:started_in(s:project('named-py-go', {'requirements.txt': [], 'blog/__init__.py': [],
+        \ 'other/__init__.py': [], 'go.mod': ['module example.com/app']}),
+        \ {'before': ['let g:project_name = "blog"'], 'ask': extend({
+        \ 'go_sources': 'project_detect#parts()[1].sources'}, s:messages)})
+  call s:answers({'active': 'python', 'name': 'blog', 'sources': ['blog/'], 'go_sources': [],
+        \ 'languages': ['python', 'go']}, l:answer)
+  call assert_notmatch('project_name', l:answer.messages)
+endfunction
+
+function! s:suite.deepest_root_wins() abort
+  let l:root = s:project('nested', {'go.mod': ['module example.com/app'],
+        \ 'tools/pyproject.toml': ['[project]', 'name = "tool"']})
+  call s:answers({'active': 'python', 'name': 'tool', 'root': l:root . '/tools', 'languages': ['python']},
+        \ s:started_in(l:root . '/tools'))
+endfunction
+
+function! s:suite.a_files_part_by_extension() abort
+  call s:answers({'py': 'python', 'go': 'go', 'readme': {}, 'outside': {},
+        \ 'go_test': 1, 'py_test': 1, 'go_named_like_py': 0, 'current': 'go'},
+        \ s:started_in(s:project('py-go-files', {'requirements.txt': [], 'pkg/__init__.py': [],
+        \   'go.mod': ['module example.com/app']}), {'after': ['edit cmd/main.go'], 'ask': {
+        \   'py': 'project_detect#part("pkg/a.py").language',
+        \   'go': 'project_detect#part("main.go").language',
+        \   'readme': 'project_detect#part("README.md")',
+        \   'outside': 'project_detect#part(' . string(s:tmp . '/x.py') . ')',
+        \   'go_test': 'project_detect#is_test("a_test.go")',
+        \   'py_test': 'project_detect#is_test("test_a.py")',
+        \   'go_named_like_py': 'project_detect#is_test("test_a.go")',
+        \   'current': 'project_detect#part().language'}}))
+endfunction
+
+function! s:suite.one_part_has_every_file() abort
+  call s:answers({'readme': 'go', 'outside': 'go'},
+        \ s:started_in(s:project('one-part', {'go.mod': ['module example.com/app']}), {'ask': {
+        \   'readme': 'project_detect#part("README.md").language',
+        \   'outside': 'project_detect#part("/elsewhere/x.txt").language'}}))
+  call s:answers({'none': {}},
+        \ s:started_in(s:project('no-part', {}), {'ask': {'none': 'project_detect#part()'}}))
+endfunction
+
+function! s:suite.registered_type_is_a_part() abort
   let l:answer = s:started_in(s:project('mine-py-one', {'.mine': [], 'pyproject.toml': ['[project]', 'name = "p"']}),
-        \ {'before': [s:mine], 'ask': {'messages': 'execute("messages")'}})
-  call s:answers({'active': 'python'}, l:answer)
-  call assert_notmatch('more than one language', l:answer.messages)
+        \ {'before': [s:mine]})
+  call s:answers({'active': 'python', 'name': 'p', 'languages': ['python', 'txt']}, l:answer)
+endfunction
+
+function! s:suite.rust_crate() abort
+  let l:root = s:project('rust-crate', {
+        \ 'Cargo.toml': ['[package]', 'name = "my-crate"', 'version = "1.0.0"', '',
+        \   '[dependencies]', 'name = "not-this"'],
+        \ 'src/lib.rs': [],
+        \ 'tests/cli.rs': [],
+        \ })
+  call s:answers({'active': 'rust', 'name': 'my-crate', 'language': 'rust', 'root': l:root,
+        \ 'sources': ['src/'], 'tests': ['tests/', 'tests.rs'],
+        \ 'integration': 1, 'unit_file': 1, 'code': 0},
+        \ s:started_in(l:root, {'ask': {
+        \   'integration': 'project_detect#is_test("tests/cli.rs")',
+        \   'unit_file': 'project_detect#is_test("src/parser/tests.rs")',
+        \   'code': 'project_detect#is_test("src/lib.rs")'}}))
+endfunction
+
+function! s:suite.rust_workspace() abort
+  let l:root = s:project('rust-ws', {
+        \ 'Cargo.toml': ['[workspace]', 'resolver = "2"', 'members = [', '  "tools/one",',
+        \   '  "crates/*",', ']', '', '[workspace.package]', 'name = "not-this"'],
+        \ 'crates/a/Cargo.toml': ['[package]', 'name = "a"'],
+        \ 'crates/a/tests/it.rs': [],
+        \ 'crates/b/Cargo.toml': ['[package]', 'name = "b"'],
+        \ 'crates/notes/README.md': [],
+        \ 'tools/one/Cargo.toml': ['[package]', 'name = "one"'],
+        \ })
+  call s:answers({'active': 'rust', 'name': 'rust-ws', 'root': l:root,
+        \ 'sources': ['tools/one/', 'crates/'], 'tests': ['crates/a/tests/', 'tests.rs']},
+        \ s:started_in(l:root))
+  call s:answers({'sources': ['crates/']},
+        \ s:started_in(s:project('rust-ws-line', {
+        \   'Cargo.toml': ['[workspace]', 'members = ["crates/*"]'],
+        \   'crates/a/Cargo.toml': ['[package]', 'name = "a"']})))
+endfunction
+
+" Like ruff: Python under crates/ is the Rust crates' test data
+let s:rust_and_python = {
+      \ 'pyproject.toml': ['[project]', 'name = "ruff"', '', '[tool.maturin]',
+      \   'manifest-path = "crates/ruff/Cargo.toml"', 'module-name = "ruff"', 'python-source = "python"'],
+      \ 'Cargo.toml': ['[workspace]', 'members = ["crates/*"]', '', '[workspace.package]', 'edition = "2024"'],
+      \ 'crates/ruff/Cargo.toml': ['[package]', 'name = "ruff"'],
+      \ 'crates/ruff/src/main.rs': [],
+      \ 'crates/ruff/tests/cli.rs': [],
+      \ 'crates/ruff_linter/Cargo.toml': ['[package]', 'name = "ruff_linter"'],
+      \ 'crates/ruff_linter/src/lib.rs': [],
+      \ 'crates/ruff_linter/resources/test/fixtures/test_rule.py': [],
+      \ 'python/ruff/__init__.py': [],
+      \ 'python/ruff/__main__.py': [],
+      \ 'scripts/add_rule.py': [],
+      \ 'playground/package.json': [],
+      \ 'README.md': [],
+      \ }
+
+function! s:suite.rust_and_python() abort
+  let l:root = s:project('rust-py', s:rust_and_python)
+  call s:answers({'active': 'python', 'name': 'ruff', 'root': l:root,
+        \ 'parts': [['python', ['python/ruff/'], s:python_tests],
+        \   ['rust', ['crates/'], ['crates/ruff/tests/', 'tests.rs']]]},
+        \ s:started_in(l:root, {'ask': {
+        \   'parts': 'map(project_detect#parts(), "[v:val.language, v:val.sources, v:val.tests]")'}}))
+endfunction
+
+function! s:suite.rust_and_python_files() abort
+  let l:root = s:project('rust-py-files', s:rust_and_python)
+  let l:fixture = 'crates/ruff_linter/resources/test/fixtures/test_rule.py'
+  call s:answers({'fixture': 'rust', 'package': 'python', 'script': 'python', 'crate': 'rust', 'readme': {},
+        \ 'fixture_is_test': 0, 'integration_is_test': 1, 'current': 'rust'},
+        \ s:started_in(l:root, {'after': ['edit ' . l:fixture], 'ask': {
+        \   'fixture': 'project_detect#part(' . string(l:fixture) . ').language',
+        \   'package': 'project_detect#part("python/ruff/__main__.py").language',
+        \   'script': 'project_detect#part("scripts/add_rule.py").language',
+        \   'crate': 'project_detect#part("crates/ruff/src/main.rs").language',
+        \   'readme': 'project_detect#part("README.md")',
+        \   'fixture_is_test': 'project_detect#is_test(' . string(l:fixture) . ')',
+        \   'integration_is_test': 'project_detect#is_test("crates/ruff/tests/cli.rs")',
+        \   'current': 'project_detect#part().language'}}))
+endfunction
+
+function! s:suite.project_name_needs_no_folder_with_python_source() abort
+  let l:answer = s:started_in(s:project('rust-py-named', s:rust_and_python),
+        \ {'before': ['let g:project_name = "chosen"'], 'ask': s:messages})
+  call s:answers({'name': 'chosen', 'sources': ['python/ruff/']}, l:answer)
+  call assert_notmatch('project_name', l:answer.messages)
 endfunction
 
 " Recognised by more than pyproject.toml
@@ -311,7 +441,7 @@ endfunction
 " Empty is not a name
 function! s:suite.empty_project_name_names_nothing() abort
   let l:root = s:project('py-empty', s:two_packages)
-  call s:answers({'active': '', 'name': ''},
+  call s:answers({'active': 'python', 'name': 'py-empty'},
         \ s:started_in(l:root, {'before': ['let g:project_name = ""']}))
 endfunction
 
@@ -352,17 +482,29 @@ function! s:suite.vim_plugin_with_plugin_only() abort
         \ s:started_in(s:project('no-script', {'plugin/README': [], 'autoload/x.txt': []})))
 endfunction
 
-" The error names the languages it found
-function! s:suite.more_than_one_language_names_them() abort
-  let l:root = s:project('all-three', {
+function! s:suite.languages_in_order() abort
+  let l:root = s:project('all-four', {
         \ 'pyproject.toml': ['[project]', 'name = "py"'],
         \ 'go.mod': ['module go'],
+        \ 'Cargo.toml': ['[package]', 'name = "rs"'],
         \ 'plugin/x.vim': [],
         \ })
-  let l:ask = {'ask': {'messages': 'execute("messages")'}}
-  call assert_match('(go, python, vim)', s:started_in(l:root, l:ask).messages)
+  call s:answers({'active': 'python', 'name': 'py', 'languages': ['python', 'go', 'rust', 'vim']},
+        \ s:started_in(l:root))
   call delete(l:root . '/pyproject.toml')
-  call assert_match('(go, vim)', s:started_in(l:root, l:ask).messages)
+  call s:answers({'active': 'go', 'name': 'go', 'languages': ['go', 'rust', 'vim']},
+        \ s:started_in(l:root))
+endfunction
+
+function! s:suite.python_with_only_a_test_directory() abort
+  call s:answers({'tests': ['test/'] + s:python_tests, 'helper': 1, 'code': 0},
+        \ s:started_in(s:project('py-test-dir', {
+        \   'pyproject.toml': ['[project]', 'name = "pkg"'],
+        \   'pkg/__init__.py': [],
+        \   'test/conftest.py': [],
+        \ }), {'ask': {
+        \   'helper': 'project_detect#is_test("test/conftest.py")',
+        \   'code': 'project_detect#is_test("pkg/__init__.py")'}}))
 endfunction
 
 function! s:suite.is_test() abort
@@ -411,7 +553,7 @@ function! s:suite.detected_when_first_asked() abort
         \ 'first/__init__.py': [],
         \ })
   let l:elsewhere = s:project('elsewhere', {})
-  for l:fn in ['active', 'name', 'language', 'root', 'sources', 'tests', 'is_test']
+  for l:fn in ['active', 'name', 'parts', 'part', 'root', 'is_test']
     call s:answers({'active': 'python', 'root': l:root},
           \ s:started_in(l:root, {'before': [
           \   'call project_detect#' . l:fn . '()',
