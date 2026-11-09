@@ -34,7 +34,7 @@ updates it to that branch's latest commit. `deps/` is not committed.
 | Path                    | What                                                                   |
 | ----------------------- | ---------------------------------------------------------------------- |
 | `plugins.txt`           | every repository checked out, with its role (config, runner, upstream, frozen, live) |
-| `bin/fetch`, `bin/pin`, `bin/test`, `bin/coverage` | check out, pin one plugin at a commit, run, list lines never run |
+| `bin/fetch`, `bin/pin`, `bin/pin-branch`, `bin/test`, `bin/coverage` | check out, pin one plugin at a commit, pin every repository with a branch of that name, run, list lines never run |
 | `test/<plugin>.vim`     | the spec of one frozen plugin                                          |
 | `test/dotfiles.vim`     | the config loads without an error                                      |
 | `test/known-failures.txt` | tests failing because of a known, not yet fixed bug                  |
@@ -99,6 +99,13 @@ It runs `bin/fetch`, then `bin/pin` to put that plugin at the pull request's
 head commit, then `bin/test`, then the smoke test (below) with that plugin at
 that commit. All the repositories are public, so it uses no token.
 
+A change across repositories is tested together by giving its branches the same
+name: a pull request's run uses any repository of ours that has a branch of that
+name at that branch, this one included, in the suite and the smoke test. Upstream
+plugins stay at their default branch. Re-run a pull request's check after pushing
+to another repository's branch; each run logs what it pinned. Delete a merged
+branch before reusing its name.
+
 The dotfiles call the same workflow from their pull requests
 (`.github/workflows/vim-suite.yml` there), when one changes what the suite
 reads: `vim-rc/`, `.pdbrc.py`, `config/starship/`, or that workflow. `bin/pin` puts
@@ -127,8 +134,8 @@ gh api -X POST repos/vimoured/<plugin>/rulesets --input ruleset.json
 plugin they `Plug` installed with `:PlugInstall`, starship's prompt with the
 dotfiles' config, then a real Vim started on a terminal; it fails on a prompt
 that isn't the expected one, any startup error or plugin that didn't install.
-`bin/smoke <dotfiles-dir> <plugin> <commit>` checks that plugin out at that
-commit once installed, as the gate does. On GitHub it's the last step of
+`bin/smoke <dotfiles-dir> <plugin> <commit> [<plugin> <commit>]...` checks those
+plugins out at those commits once installed, as the gate does. On GitHub it's the last step of
 `suite.yml`; the *smoke* workflow runs it alone by hand, for a dotfiles
 branch, tag or commit (default `main`).
 

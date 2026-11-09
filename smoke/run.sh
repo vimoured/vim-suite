@@ -2,8 +2,9 @@
 # Runs in the smoke image, with the dotfiles at /dotfiles: sets Vim up as the
 # dotfiles' install.sh does, installs every plugin they Plug, checks starship's
 # prompt, then starts a real Vim on a terminal. Fails on the wrong prompt, when
-# Vim reports an error or a plugin is missing. With $SMOKE_PIN ("<plugin> <commit>"), that plugin is checked out
-# at that commit once installed: a plugin's pull request.
+# Vim reports an error or a plugin is missing. With $SMOKE_PIN ("<plugin> <commit>",
+# any number of pairs), those plugins are checked out at those commits once
+# installed: a pull request, and the branches of the same name.
 set -eu
 dots=/dotfiles
 
@@ -22,8 +23,8 @@ echo "### plugins"
 # Ex mode skips the vimrc unless -u names it
 vim -Es -u "$HOME/.vimrc" -i NONE +PlugInstall +qall </dev/null || true
 ls "$HOME/.vim/plugged"
-if [ -n "${SMOKE_PIN:-}" ]; then
-  set -- $SMOKE_PIN
+set -- ${SMOKE_PIN:-}
+while [ $# -gt 0 ]; do
   if [ -d "$HOME/.vim/plugged/$1/.git" ]; then
     git -C "$HOME/.vim/plugged/$1" fetch --quiet --depth 1 origin "$2"
     git -C "$HOME/.vim/plugged/$1" checkout --quiet --detach FETCH_HEAD
@@ -31,7 +32,8 @@ if [ -n "${SMOKE_PIN:-}" ]; then
   else
     echo "$1 isn't one of the dotfiles' plugins: nothing to pin"
   fi
-fi
+  shift 2
+done
 
 echo "### prompt"
 # install.sh, for starship

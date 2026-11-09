@@ -1,0 +1,24 @@
+#!/bin/sh
+# Puts every repository of ours in $SUITE_DEPS (default deps/) that has a branch
+# of this name at that branch: a change across repositories is tested together
+# by giving its branches one name. Upstream ones stay at their default branch.
+# Prints "<name> <commit>" for each, as bin/smoke takes them.
+#
+#   bin/pin-branch my-change
+set -e
+root=$(cd "$(dirname "$0")/.." && pwd)
+SUITE_DEPS=${SUITE_DEPS:-$root/deps}
+branch=${1:-}
+if [ -z "$branch" ]; then
+  echo "usage: bin/pin-branch <branch>" >&2
+  exit 2
+fi
+[ "$branch" != main ] || exit 0
+
+grep -v '^[[:space:]]*\(#\|$\)' "$root/plugins.txt" | while read -r name repo role; do
+  case $role in upstream | runner) continue ;; esac
+  sha=$(git -C "$SUITE_DEPS/$name" ls-remote origin "refs/heads/$branch" | cut -f1)
+  [ -n "$sha" ] || continue
+  "$root/bin/pin" "$name" "$sha" >&2
+  echo "$name $sha"
+done

@@ -9,7 +9,10 @@ name: suite
 #
 # The whole suite runs with that plugin at the pull request's head commit and
 # every other repository at main, then the smoke test (smoke.yml, bin/smoke)
-# with that plugin at that commit. The dotfiles call it the same way, for a
+# with that plugin at that commit. Any repository of ours, this one included,
+# with a branch named as the pull request's is used at that branch: name the
+# branches of a change across repositories alike, and they're tested together.
+# The dotfiles call it the same way, for a
 # pull request that changes what the suite reads of them (their
 # .github/workflows/vim-suite.yml). Or run it by hand, everything at main.
 on:
@@ -29,6 +32,16 @@ jobs:
         with:
           repository: vimoured/vim-suite
           ref: main
+      - name: Use this repository's branch of the same name
+        if: github.event_name == 'pull_request' && github.head_ref != 'main'
+        env:
+          BRANCH: ${{ github.head_ref }}
+        run: |
+          if git ls-remote --exit-code --heads origin "refs/heads/$BRANCH" >/dev/null; then
+            git fetch --quiet --depth 1 origin "refs/heads/$BRANCH"
+            git checkout --quiet --detach FETCH_HEAD
+            echo "vim-suite at $BRANCH ($(git rev-parse --short HEAD))"
+          fi
       # rg and fd for fzf-utils, which defines its searches only when they're
       # installed. Ubuntu's fd is fdfind: fd is linked to it
       - name: Install Vim, ripgrep and fd
@@ -58,24 +71,26 @@ jobs:
           github.event_name != 'pull_request' ||
           contains(fromJSON('["pytest.vim", "project-detect", "dotfiles"]'), github.event.repository.name)
         run: deps/python/bin/python -m pip install --quiet -r test/requirements-pytest.txt
+      # A change across repositories: its branches share the pull request's name
+      - name: Check out the branches of the same name
+        if: github.event_name == 'pull_request'
+        env:
+          BRANCH: ${{ github.head_ref }}
+        run: bin/pin-branch "$BRANCH" >"$RUNNER_TEMP/pins"
       # A plugin's pull request, or the dotfiles'
       - name: Check out the pull request's commit
         if: github.event_name == 'pull_request'
         env:
           NAME: ${{ github.event.repository.name }}
           SHA: ${{ github.event.pull_request.head.sha }}
-        run: bin/pin "$NAME" "$SHA"
+        run: |
+          bin/pin "$NAME" "$SHA"
+          echo "$NAME $SHA" >>"$RUNNER_TEMP/pins"
       - name: Run the suite
         run: bin/test
-      # The dotfiles in deps/ (at the pull request's commit, for theirs),
-      # every plugin they Plug at main, a plugin's pull request's at its commit
+      # The dotfiles in deps/ (at the pull request's commit, for theirs), every
+      # plugin they Plug at main, except the ones pinned above
       - name: Smoke test
-        env:
-          NAME: ${{ github.event.repository.name }}
-          SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          if [ -n "$SHA" ] && [ "$NAME" != dotfiles ]; then
-            bin/smoke deps/dotfiles "$NAME" "$SHA"
-          else
-            bin/smoke deps/dotfiles
-          fi
+          pins=$(grep -v '^dotfiles ' "$RUNNER_TEMP/pins" 2>/dev/null || true)
+          bin/smoke deps/dotfiles $pins
