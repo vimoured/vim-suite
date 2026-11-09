@@ -1,8 +1,8 @@
 " pytest.vim: what the dotfiles use of it (maplocalleader _: _r*, _t* and _d*
 " in test files and in the test lists, :RunPytest, :TracePytest, :PytestTests,
 " :PytestOutline, :ParsePytestFailures, qf-tools' dd / :QfSave / :QfLoad on
-" the lists), with real runs: pytest from deps/python, through the dotfiles'
-" chkpyt.sh (g:project_detect_runners), dispatched by vim-dispatch. A
+" the lists), with real runs: pytest from deps/python, with the dotfiles'
+" g:pytest_command and g:pytest_debug_command, dispatched by vim-dispatch. A
 " conftest.py records the tests pytest ran. Without pytest in deps/python (CI
 " installs it for Python-related pull requests only) the runs are TODO skips.
 "
@@ -68,10 +68,10 @@ let g:suite_spec = expand('<sfile>')
 execute 'source' fnameescape(expand('<sfile>:p:h') . '/helper/env.vim')
 let s:suite = themis#suite('pytest.vim')
 
-" pytest from the suite's venv, the dotfiles' chkpyt.sh
+" pytest from the suite's venv
 let s:venv = g:suite.deps . '/python/bin'
 let s:has_pytest = executable(s:venv . '/pytest')
-let $PATH = s:venv . ':' . g:suite.deps . '/dotfiles/.config/shell/bin:' . $PATH
+let $PATH = s:venv . ':' . $PATH
 let $RAN = s:tmp . '/ran.txt'
 let s:lead = get(g:, 'maplocalleader', '\')
 
@@ -156,8 +156,8 @@ function! s:suite.run_the_method() abort
   edit tests/test_sample.py
   call cursor(14, 1)
   let [l:cmd, l:ran] = s:dispatched(s:lead . 'rm')
-  call assert_match('chkpyt\.sh .*tests/test_sample\.py::TestThing::test_a$', l:cmd,
-        \ 'the dotfiles'' runner')
+  call assert_match('pytest -q .*tests/test_sample\.py::TestThing::test_a$', l:cmd,
+        \ 'the dotfiles'' command')
   call assert_equal(['tests/test_sample.py::TestThing::test_a[1]',
         \ 'tests/test_sample.py::TestThing::test_a[2]'], l:ran, 'parametrised: one test')
   " A function nested in a method is part of it
@@ -221,7 +221,7 @@ function! s:suite.trace_keys() abort
   edit tests/test_sample.py
   call cursor(7, 1)
   call s:type(s:lead . 'tf')
-  call assert_match('chkpyt\.sh --no-default-addopts tests/test_sample\.py::test_one --trace', s:traced(),
+  call assert_match('pytest tests/test_sample\.py::test_one --trace', s:traced(),
         \ 'the dotfiles'' debug command, in a terminal')
   call cursor(19, 1)
   call s:type(s:lead . 'tm')
@@ -243,7 +243,7 @@ function! s:suite.debug_keys() abort
     edit tests/test_broken.py
     call cursor(6, 1)
     call s:type(s:lead . 'df')
-    call assert_match('chkpyt\.sh --no-default-addopts tests/test_broken\.py::test_f --pdb', s:traced(),
+    call assert_match('pytest tests/test_broken\.py::test_f --pdb', s:traced(),
           \ 'the dotfiles'' debug command, in a terminal')
     call cursor(3, 1)
     call s:type(s:lead . 'dm')
@@ -333,7 +333,7 @@ function! s:suite.dispatch_runs_pytest() abort
   call s:needs_pytest()
   edit tests/test_other.py
   let [l:cmd, l:ran] = s:dispatched(":Dispatch\<CR>")
-  call assert_match('chkpyt\.sh', l:cmd)
+  call assert_match('pytest -q', l:cmd)
   call assert_equal(8, len(l:ran), 'every test')
 endfunction
 
@@ -341,22 +341,48 @@ function! s:suite.trace_pytest_with_arguments() abort
   call s:needs_pytest()
   edit tests/test_sample.py
   call s:type(":TracePytest -k test_one\<CR>")
-  call assert_match('chkpyt\.sh --no-default-addopts -k test_one --trace', s:traced())
+  call assert_match('pytest -k test_one --trace', s:traced())
 endfunction
 
-function! s:suite.trace_needs_project_detect() abort
+function! s:suite.tests_list_needs_project_detect() abort
   edit tests/test_sample.py
   let l:rtp = &runtimepath
   try
     execute 'set runtimepath-=' . fnameescape(g:suite.deps . '/project-detect')
-    call assert_match("^\npytest.vim: A --trace .*session needs project-detect, which is not installed$",
-          \ execute('TracePytest'))
     call assert_equal("\npytest.vim: :PytestTests needs project-detect, which is not installed",
           \ execute('PytestTests'))
   finally
     let &runtimepath = l:rtp
   endtry
-  call assert_equal([], term_list(), 'no terminal')
+endfunction
+
+function! s:suite.trace_without_project_detect() abort
+  call s:needs_pytest()
+  edit tests/test_sample.py
+  let l:rtp = &runtimepath
+  try
+    execute 'set runtimepath-=' . fnameescape(g:suite.deps . '/project-detect')
+    call s:type(":TracePytest -k test_one\<CR>")
+    call assert_match('pytest -k test_one --trace', s:traced())
+  finally
+    let &runtimepath = l:rtp
+  endtry
+endfunction
+
+" pytest, unless set; debugging runs what running does, unless set. Read when
+" asked, so setting them later counts
+function! s:suite.commands_default_and_can_be_set() abort
+  let [l:run, l:debug] = [g:pytest_command, g:pytest_debug_command]
+  try
+    unlet g:pytest_command g:pytest_debug_command
+    call assert_equal(['pytest', 'pytest'], [pytest#command(), pytest#debug_command()])
+    let g:pytest_command = 'pytest -x'
+    call assert_equal(['pytest -x', 'pytest -x'], [pytest#command(), pytest#debug_command()])
+    let g:pytest_debug_command = 'pytest --pdbcls=x'
+    call assert_equal(['pytest -x', 'pytest --pdbcls=x'], [pytest#command(), pytest#debug_command()])
+  finally
+    let [g:pytest_command, g:pytest_debug_command] = [l:run, l:debug]
+  endtry
 endfunction
 
 """ The test lists
@@ -546,7 +572,7 @@ function! s:suite.parse_failures() abort
         \ 'def test_p(n): assert 0',
         \ ], s:root . '/tests/test_fail.py')
   try
-    let l:out = systemlist('chkpyt.sh tests/test_fail.py tests/test_other.py')
+    let l:out = systemlist(g:pytest_command . ' tests/test_fail.py tests/test_other.py')
   finally
     call delete(s:root . '/tests/test_fail.py')
   endtry

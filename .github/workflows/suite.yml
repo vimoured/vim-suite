@@ -49,7 +49,7 @@ jobs:
           SUITE_PYTHON: python
           SUITE_PYTEST: 0
         run: bin/fetch
-      # Real pytest runs (pytest.vim's spec, through the dotfiles' chkpyt.sh)
+      # Real pytest runs (pytest.vim's spec)
       # only for a Python-related change: a pull request of pytest.vim,
       # project-detect or the dotfiles, or a run by hand. Elsewhere those
       # tests are TODO skips
