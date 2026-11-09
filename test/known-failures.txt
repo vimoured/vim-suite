@@ -9,3 +9,7 @@
 # then, with or without other changes; cause not known. Skipped on CI, which
 # has no glow
 glow-preview live_preview_in_a_tmux_pane_rerenders_on_save
+
+# project-detect looks once, from the directory Vim started in: after :cd into
+# a project it's still not detected, so <leader>rp has no scope
+fzf-utils-cd-into-project grep_code_after_cd_into_the_project
