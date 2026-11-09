@@ -1,0 +1,21 @@
+name: tag
+
+on:
+  workflow_call:
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    # Merges close together would otherwise pick the same version
+    concurrency: tag
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
+        with:
+          repository: vimoured/vim-suite
+          ref: main
+          path: .vim-suite
+      - run: .vim-suite/bin/tag

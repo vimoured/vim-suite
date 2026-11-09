@@ -1,0 +1,15 @@
+#!/bin/sh
+# Tags the commit checked out here with the next patch version on origin: one
+# past its highest v<major>.<minor>.<patch>, or v1.0.0 when it has none.
+#
+#   cd <plugin> && bin/tag
+set -e
+latest=$(git ls-remote --tags --refs --sort=-version:refname origin 'refs/tags/v*' |
+  sed -n '1s|.*refs/tags/||p')
+if [ -n "$latest" ]; then
+  next=${latest%.*}.$((${latest##*.} + 1))
+else
+  next=v1.0.0
+fi
+git push --quiet origin "HEAD:refs/tags/$next"
+echo "tagged $next"

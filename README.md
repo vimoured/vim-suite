@@ -34,7 +34,7 @@ updates it to that branch's latest commit. `deps/` is not committed.
 | Path                    | What                                                                   |
 | ----------------------- | ---------------------------------------------------------------------- |
 | `plugins.txt`           | every repository checked out, with its role (config, runner, upstream, frozen, live) |
-| `bin/fetch`, `bin/pin`, `bin/pin-branch`, `bin/test`, `bin/coverage` | check out, pin one plugin at a commit, pin every repository with a branch of that name, run, list lines never run |
+| `bin/fetch`, `bin/pin`, `bin/pin-branch`, `bin/test`, `bin/coverage`, `bin/tag` | check out, pin one plugin at a commit, pin every repository with a branch of that name, run, list lines never run, tag a plugin's merge |
 | `test/<plugin>.vim`     | the spec of one frozen plugin                                          |
 | `test/dotfiles.vim`     | the config loads without an error                                      |
 | `test/known-failures.txt` | tests failing because of a known, not yet fixed bug                  |
@@ -125,6 +125,31 @@ required, and force-pushes and deletion are blocked, with no bypass:
 
 ```sh
 gh api -X POST repos/vimoured/<plugin>/rulesets --input ruleset.json
+```
+
+### Tags
+
+Every merge to a plugin's main is tagged with the next patch version, from
+`v1.0.0`. Each plugin calls the reusable workflow `.github/workflows/tag.yml`
+from its own:
+
+```yaml
+# .github/workflows/tag.yml in the plugin
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  tag:
+    uses: vimoured/vim-suite/.github/workflows/tag.yml@main
+```
+
+Each plugin's repository also has a ruleset made from `ruleset-tags.json`, so a
+version tag stays on its commit, with no bypass:
+
+```sh
+gh api -X POST repos/vimoured/<plugin>/rulesets --input ruleset-tags.json
 ```
 
 ### Smoke test
