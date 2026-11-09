@@ -46,7 +46,8 @@ endfunction
 " The files the live grep fzf was last given matches find_me in
 function! s:matched() abort
   let l:opts = type(s:spec().options) == v:t_list ? join(s:spec().options, ' ') : s:spec().options
-  let l:cmd = substitute(matchstr(l:opts, "'start:reload:\\zs.\\{-}\\ze' '"), "'\\\\''", "'", 'g')
+  " Up to the -e that takes the query: several quoted paths have ' ' in them
+  let l:cmd = substitute(matchstr(l:opts, "'start:reload:\\zs.\\{-} -e \\ze"), "'\\\\''", "'", 'g')
   let l:lines = systemlist('cd ' . shellescape(s:root) . ' && ' . l:cmd . 'find_me')
   return uniq(sort(map(l:lines, 'matchstr(substitute(v:val, "\\e\\[[0-9;]*m", "", "g"), "^[^:]*")')))
 endfunction
