@@ -13,10 +13,3 @@ glow-preview live_preview_in_a_tmux_pane_rerenders_on_save
 # project-detect looks once, from the directory Vim started in: after :cd into
 # a project it's still not detected, so <leader>rp has no scope
 fzf-utils-cd-into-project grep_code_after_cd_into_the_project
-
-# pytest.vim's PR (g:pytest_command) and the dotfiles' PR that sets it each
-# fail against the other at main. Only while those land, then remove these
-pytest.vim run_the_method
-pytest.vim dispatch_runs_pytest
-pytest.vim command_defaults_and_can_be_set
-pytest.vim parse_failures
