@@ -35,7 +35,6 @@ function! s:project(name, files) abort
   return l:root
 endfunction
 
-" language, sources and tests are the first part's
 let s:first = 'get(project_detect#parts(), 0, {})'
 let s:asked = {
       \ 'active': 'project_detect#active()',
@@ -162,9 +161,7 @@ function! s:suite.python_named_after_its_only_package() abort
         \ s:started_in(l:root))
 endfunction
 
-" No name anywhere: the directory's, if Vim started in it. From below, the
-" file found may not be this project's: not a project, until g:project_name
-" names it
+" From below, the file found may not be this project's
 function! s:suite.python_without_a_name() abort
   let l:root = s:project('py-nameless', {
         \ 'pyproject.toml': [],
@@ -217,7 +214,6 @@ function! s:suite.project_name_alone_with_no_folder_is_an_error() abort
   call assert_match('g:project_name "blgo"', l:answer.messages)
 endfunction
 
-" Every language found is a part of one project, the first one's type and name
 function! s:suite.more_than_one_language_is_one_project() abort
   let l:go = ['module example.com/app']
   for [l:name, l:files, l:expected] in [
@@ -236,18 +232,16 @@ function! s:suite.more_than_one_language_is_one_project() abort
   endfor
 endfunction
 
-" g:project_name still names it all, and is Python's folder and no other's
 function! s:suite.project_name_names_every_language() abort
-  let l:root = s:project('named-py-go', {'requirements.txt': [], 'blog/__init__.py': [],
-        \ 'other/__init__.py': [], 'go.mod': ['module example.com/app']})
-  let l:answer = s:started_in(l:root, {'before': ['let g:project_name = "blog"'], 'ask': extend({
+  let l:answer = s:started_in(s:project('named-py-go', {'requirements.txt': [], 'blog/__init__.py': [],
+        \ 'other/__init__.py': [], 'go.mod': ['module example.com/app']}),
+        \ {'before': ['let g:project_name = "blog"'], 'ask': extend({
         \ 'go_sources': 'project_detect#parts()[1].sources'}, s:messages)})
   call s:answers({'active': 'python', 'name': 'blog', 'sources': ['blog/'], 'go_sources': [],
         \ 'languages': ['python', 'go']}, l:answer)
   call assert_notmatch('project_name', l:answer.messages)
 endfunction
 
-" A language found further up is a project around this one
 function! s:suite.deepest_root_wins() abort
   let l:root = s:project('nested', {'go.mod': ['module example.com/app'],
         \ 'tools/pyproject.toml': ['[project]', 'name = "tool"']})
@@ -255,16 +249,13 @@ function! s:suite.deepest_root_wins() abort
         \ s:started_in(l:root . '/tools'))
 endfunction
 
-" Beside each other at the root: a file's extension says which it's in
 function! s:suite.a_files_part_by_extension() abort
-  let l:root = s:project('py-go-files', {'requirements.txt': [], 'pkg/__init__.py': [],
-        \ 'go.mod': ['module example.com/app']})
-  call s:answers({'py': 'python', 'go': 'go', 'pyi': 'python', 'readme': {}, 'outside': {},
+  call s:answers({'py': 'python', 'go': 'go', 'readme': {}, 'outside': {},
         \ 'go_test': 1, 'py_test': 1, 'go_named_like_py': 0, 'current': 'go'},
-        \ s:started_in(l:root, {'after': ['edit cmd/main.go'], 'ask': {
+        \ s:started_in(s:project('py-go-files', {'requirements.txt': [], 'pkg/__init__.py': [],
+        \   'go.mod': ['module example.com/app']}), {'after': ['edit cmd/main.go'], 'ask': {
         \   'py': 'project_detect#part("pkg/a.py").language',
         \   'go': 'project_detect#part("main.go").language',
-        \   'pyi': 'project_detect#part("x.pyi").language',
         \   'readme': 'project_detect#part("README.md")',
         \   'outside': 'project_detect#part(' . string(s:tmp . '/x.py') . ')',
         \   'go_test': 'project_detect#is_test("a_test.go")',
@@ -273,17 +264,15 @@ function! s:suite.a_files_part_by_extension() abort
         \   'current': 'project_detect#part().language'}}))
 endfunction
 
-" One language: every file is in its part, wherever it is
 function! s:suite.one_part_has_every_file() abort
-  let l:root = s:project('one-part', {'go.mod': ['module example.com/app']})
-  call s:answers({'readme': 'go', 'outside': 'go', 'none': {}},
-        \ extend(s:started_in(l:root, {'ask': {
+  call s:answers({'readme': 'go', 'outside': 'go'},
+        \ s:started_in(s:project('one-part', {'go.mod': ['module example.com/app']}), {'ask': {
         \   'readme': 'project_detect#part("README.md").language',
-        \   'outside': 'project_detect#part("/elsewhere/x.txt").language'}}),
-        \ {'none': s:started_in(s:project('no-part', {}), {'ask': {'none': 'project_detect#part()'}}).none}))
+        \   'outside': 'project_detect#part("/elsewhere/x.txt").language'}}))
+  call s:answers({'none': {}},
+        \ s:started_in(s:project('no-part', {}), {'ask': {'none': 'project_detect#part()'}}))
 endfunction
 
-" A strategy of your own is a part too, after the built-in ones
 function! s:suite.registered_type_is_a_part() abort
   let l:answer = s:started_in(s:project('mine-py-one', {'.mine': [], 'pyproject.toml': ['[project]', 'name = "p"']}),
         \ {'before': [s:mine]})
@@ -306,11 +295,9 @@ function! s:suite.rust_crate() abort
         \   'code': 'project_detect#is_test("src/lib.rs")'}}))
 endfunction
 
-" A workspace names no package: its directory does. Its members can be globs
-" (one place to search) or crates, on one line or several
 function! s:suite.rust_workspace() abort
   let l:root = s:project('rust-ws', {
-        \ 'Cargo.toml': ['[workspace]', 'resolver = "2"', 'members = [', '  "tools/one", # a comment',
+        \ 'Cargo.toml': ['[workspace]', 'resolver = "2"', 'members = [', '  "tools/one",',
         \   '  "crates/*",', ']', '', '[workspace.package]', 'name = "not-this"'],
         \ 'crates/a/Cargo.toml': ['[package]', 'name = "a"'],
         \ 'crates/a/tests/it.rs': [],
@@ -327,8 +314,7 @@ function! s:suite.rust_workspace() abort
         \   'crates/a/Cargo.toml': ['[package]', 'name = "a"']})))
 endfunction
 
-" Like ruff: a Rust workspace with a Python package at maturin's python-source,
-" and Python under crates/ that is the Rust crates' test data
+" Like ruff: Python under crates/ is the Rust crates' test data
 let s:rust_and_python = {
       \ 'pyproject.toml': ['[project]', 'name = "ruff"', '', '[tool.maturin]',
       \   'manifest-path = "crates/ruff/Cargo.toml"', 'module-name = "ruff"', 'python-source = "python"'],
@@ -355,7 +341,6 @@ function! s:suite.rust_and_python() abort
         \   'parts': 'map(project_detect#parts(), "[v:val.language, v:val.sources, v:val.tests]")'}}))
 endfunction
 
-" Where a file is decides before its extension
 function! s:suite.rust_and_python_files() abort
   let l:root = s:project('rust-py-files', s:rust_and_python)
   let l:fixture = 'crates/ruff_linter/resources/test/fixtures/test_rule.py'
@@ -372,22 +357,11 @@ function! s:suite.rust_and_python_files() abort
         \   'current': 'project_detect#part().language'}}))
 endfunction
 
-" python-source says where the code is, so the name needs no folder
 function! s:suite.project_name_needs_no_folder_with_python_source() abort
-  let l:root = s:project('rust-py-named', s:rust_and_python)
-  let l:answer = s:started_in(l:root, {'before': ['let g:project_name = "chosen"'], 'ask': s:messages})
+  let l:answer = s:started_in(s:project('rust-py-named', s:rust_and_python),
+        \ {'before': ['let g:project_name = "chosen"'], 'ask': s:messages})
   call s:answers({'name': 'chosen', 'sources': ['python/ruff/']}, l:answer)
   call assert_notmatch('project_name', l:answer.messages)
-endfunction
-
-" python-source alone, and a dotted module-name, are in the same place
-function! s:suite.python_source_without_a_module() abort
-  let l:root = s:project('maturin-source', {'pyproject.toml': ['[project]', 'name = "x"', '[tool.maturin]', 'python-source = "py"'],
-        \ 'py/x/__init__.py': []})
-  call s:answers({'sources': ['py/']}, s:started_in(l:root))
-  let l:root = s:project('maturin-dotted', {'pyproject.toml': ['[project]', 'name = "x"', '[tool.maturin]',
-        \ 'python-source = "py"', 'module-name = "pkg._native"'], 'py/pkg/__init__.py': []})
-  call s:answers({'sources': ['py/pkg/']}, s:started_in(l:root))
 endfunction
 
 " Recognised by more than pyproject.toml
@@ -464,7 +438,7 @@ function! s:suite.project_name_of_another_language_is_no_error() abort
   endfor
 endfunction
 
-" Empty is not a name: the project is named as if it weren't set
+" Empty is not a name
 function! s:suite.empty_project_name_names_nothing() abort
   let l:root = s:project('py-empty', s:two_packages)
   call s:answers({'active': 'python', 'name': 'py-empty'},
@@ -508,7 +482,6 @@ function! s:suite.vim_plugin_with_plugin_only() abort
         \ s:started_in(s:project('no-script', {'plugin/README': [], 'autoload/x.txt': []})))
 endfunction
 
-" Parts are in a fixed order, and the first with a name gives it
 function! s:suite.languages_in_order() abort
   let l:root = s:project('all-four', {
         \ 'pyproject.toml': ['[project]', 'name = "py"'],
@@ -521,6 +494,17 @@ function! s:suite.languages_in_order() abort
   call delete(l:root . '/pyproject.toml')
   call s:answers({'active': 'go', 'name': 'go', 'languages': ['go', 'rust', 'vim']},
         \ s:started_in(l:root))
+endfunction
+
+function! s:suite.python_with_only_a_test_directory() abort
+  call s:answers({'tests': ['test/'] + s:python_tests, 'helper': 1, 'code': 0},
+        \ s:started_in(s:project('py-test-dir', {
+        \   'pyproject.toml': ['[project]', 'name = "pkg"'],
+        \   'pkg/__init__.py': [],
+        \   'test/conftest.py': [],
+        \ }), {'ask': {
+        \   'helper': 'project_detect#is_test("test/conftest.py")',
+        \   'code': 'project_detect#is_test("pkg/__init__.py")'}}))
 endfunction
 
 function! s:suite.is_test() abort

@@ -1,9 +1,7 @@
-" fzf-utils in a project of more than one language, like ruff: Rust crates with
-" Python test data in them, beside a Python package. The picker has each
-" language, and the code and tests keys search the current file's.
+" Like ruff: Rust crates with Python test data in them, beside a Python package
 let s:tmp = resolve(tempname())
 let s:root = s:tmp . '/mixed'
-let s:files = {
+for [s:path, s:lines] in items({
       \ 'pyproject.toml': ['[project]', 'name = "mixed"', '[tool.maturin]', 'python-source = "python"', 'module-name = "mixed"'],
       \ 'Cargo.toml': ['[workspace]', 'members = ["crates/*"]'],
       \ 'crates/core/Cargo.toml': ['[package]', 'name = "core"'],
@@ -13,8 +11,7 @@ let s:files = {
       \ 'python/mixed/__init__.py': ['def find_me(): pass'],
       \ 'python/mixed/test_it.py': ['def find_me(): pass'],
       \ 'notes.txt': ['find_me in the notes'],
-      \ }
-for [s:path, s:lines] in items(s:files)
+      \ })
   call mkdir(fnamemodify(s:root . '/' . s:path, ':h'), 'p')
   call writefile(s:lines, s:root . '/' . s:path)
 endfor
@@ -43,13 +40,12 @@ function! s:spec() abort
   return get(g:suite.fzf, -1, {})
 endfunction
 
-" The files the live grep fzf was last given matches find_me in
 function! s:matched() abort
-  let l:opts = type(s:spec().options) == v:t_list ? join(s:spec().options, ' ') : s:spec().options
   " Up to the -e that takes the query: several quoted paths have ' ' in them
-  let l:cmd = substitute(matchstr(l:opts, "'start:reload:\\zs.\\{-} -e \\ze"), "'\\\\''", "'", 'g')
-  let l:lines = systemlist('cd ' . shellescape(s:root) . ' && ' . l:cmd . 'find_me')
-  return uniq(sort(map(l:lines, 'matchstr(substitute(v:val, "\\e\\[[0-9;]*m", "", "g"), "^[^:]*")')))
+  return uniq(sort(map(systemlist('cd ' . shellescape(s:root) . ' && '
+        \ . substitute(matchstr(type(s:spec().options) == v:t_list ? join(s:spec().options, ' ') : s:spec().options,
+        \   "'start:reload:\\zs.\\{-} -e \\ze"), "'\\\\''", "'", 'g') . 'find_me'),
+        \ 'matchstr(substitute(v:val, "\\e\\[[0-9;]*m", "", "g"), "^[^:]*")')))
 endfunction
 
 function! s:suite.startup_has_no_error() abort
@@ -84,14 +80,12 @@ function! s:suite.grep_tests_is_the_current_files_language() abort
   call assert_equal(['crates/core/tests/it.rs'], s:matched())
 endfunction
 
-" Python in a Rust crate is the crate's: the Rust code is searched from it
 function! s:suite.test_data_searches_its_crate() abort
   edit crates/core/resources/fixture.py
   call s:type(s:leader . 'rp')
   call assert_equal(['crates/core/src/lib.rs', 'crates/core/tests/it.rs'], s:matched())
 endfunction
 
-" In no language: every language's code
 function! s:suite.a_file_of_no_language_searches_them_all() abort
   edit notes.txt
   call s:type(s:leader . 'rp')
