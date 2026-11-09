@@ -1,6 +1,6 @@
-" fzf-utils in a Python project only g:project_name can name, as a project's
-" .vim.custom sets it: pyproject.toml declares no name and several packages sit
-" at the root, so the name says which one is the code. A name with no folder:
+" fzf-utils in a Python project g:project_name names, as a project's .vim.custom
+" sets it: pyproject.toml declares no name and several packages sit at the root,
+" so the name says which one is the code. A name with no folder:
 " test/project-detect.vim.
 let s:tmp = resolve(tempname())
 let s:root = s:tmp . '/flask'
