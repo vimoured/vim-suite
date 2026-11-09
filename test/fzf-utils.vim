@@ -1,5 +1,5 @@
 " fzf-utils: what the dotfiles use of it (<leader><leader>, <leader>r* in
-" normal and visual mode, <C-x><C-f> / <C-x><C-l> / <C-x><C-a> in insert mode,
+" normal and visual mode, <C-x><C-f> / <C-x><C-d> / <C-x><C-l> / <C-x><C-a> in insert mode,
 " :Rg as :RgRaw), vim-prompts' file picker (fzf_utils#pick_files), and its
 " README, in a Python project (project-detect looks once, at VimEnter: the
 " project is made, and Vim cd'd into it, before the config loads). Outside a
@@ -34,6 +34,9 @@ let s:leader = get(g:, 'mapleader', '\')
 function! s:suite.before_each() abort
   let g:suite.fzf = []
   let g:fzf_utils_include_ignored = 0
+  for l:variable in ['FZF_CTRL_T_COMMAND', 'FZF_CTRL_T_OPTS', 'FZF_ALT_C_COMMAND', 'FZF_ALT_C_OPTS']
+    call setenv(l:variable, v:null)
+  endfor
   silent! only!
   silent! %bwipeout!
   execute 'cd' fnameescape(s:root)
@@ -298,6 +301,57 @@ function! s:suite.complete_path_after_an_at_gives_each_file_its_at() abort
   call assert_equal('@src/a.py @tests/b.py', getline(1))
 endfunction
 
+" The shell's Ctrl-T listing and preview, from fzf's own variables
+function! s:suite.complete_path_lists_what_ctrl_t_lists() abort
+  let $FZF_CTRL_T_COMMAND = 'fd --type f --strip-cwd-prefix --hidden dep.py'
+  let $FZF_CTRL_T_OPTS = "--preview 'cat {}'"
+  call s:type("i\<C-x>\<C-f>")
+  call assert_equal([], s:listed(s:spec().source), 'ignored files out')
+  call assert_match('--preview', string(s:spec().options))
+  let g:fzf_utils_include_ignored = 1
+  call s:type("i\<C-x>\<C-f>")
+  call assert_equal(['.venv/lib/dep.py'], s:listed(s:spec().source), 'following the toggle')
+endfunction
+
+let s:dirs = ['shared/', 'src/', 'src/pkg/', 'tests/']
+
+function! s:suite.complete_dir_lists_directories_by_the_same_rules() abort
+  call s:type("i\<C-x>\<C-d>")
+  call assert_equal(s:dirs, s:listed(s:spec().source),
+        \ 'dotfiles and symlinks in; .git, __pycache__ and ignored directories out')
+  let g:fzf_utils_include_ignored = 1
+  call s:type("i\<C-x>\<C-d>")
+  call assert_equal(sort(s:dirs + ['.venv/', '.venv/lib/']), s:listed(s:spec().source),
+        \ 'following the toggle')
+endfunction
+
+function! s:suite.complete_dir_picks_one() abort
+  enew!
+  call s:type("i\<C-x>\<C-d>")
+  call assert_match('--no-multi', string(s:spec().options))
+  call s:pick(['src/pkg/'])
+  call assert_equal('src/pkg/', getline(1))
+endfunction
+
+function! s:suite.complete_dir_starts_from_the_directory_typed() abort
+  enew!
+  call setline(1, 'src/')
+  call s:type("A\<C-x>\<C-d>")
+  call assert_equal(['src/pkg/'], s:listed(s:spec().source))
+endfunction
+
+" The shell's Alt-C listing and preview, from fzf's own variables
+function! s:suite.complete_dir_lists_what_alt_c_lists() abort
+  let $FZF_ALT_C_COMMAND = 'fd --type d --strip-cwd-prefix --hidden lib'
+  let $FZF_ALT_C_OPTS = "--preview 'ls {}'"
+  call s:type("i\<C-x>\<C-d>")
+  call assert_equal([], s:listed(s:spec().source), 'ignored directories out')
+  call assert_match('--preview', string(s:spec().options))
+  let g:fzf_utils_include_ignored = 1
+  call s:type("i\<C-x>\<C-d>")
+  call assert_equal(['.venv/lib/'], s:listed(s:spec().source), 'following the toggle')
+endfunction
+
 function! s:suite.complete_line() abort
   call s:type("o\<C-x>\<C-l>")
   call assert_true(!empty(g:suite.fzf), 'fzf asked')
@@ -315,6 +369,7 @@ endfunction
 " a message
 function! s:suite.completion_in_the_command_line_window() abort
   call assert_notmatch('E\d\+:', s:type("q:izz\<C-x>\<C-f>\<Esc>\<Esc>:q\<CR>"))
+  call assert_notmatch('E\d\+:', s:type("q:izz\<C-x>\<C-d>\<Esc>\<Esc>:q\<CR>"))
   call assert_notmatch('E\d\+:', s:type("q:izz\<C-x>\<C-l>\<Esc>\<Esc>:q\<CR>"))
   call assert_equal([], g:suite.fzf, 'fzf not asked')
   " Typed outside execute(), so the message is kept in :messages
