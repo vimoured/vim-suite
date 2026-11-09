@@ -190,9 +190,129 @@ function! s:suite.project_name_wins() abort
         \ s:started_in(l:root, {'ask': {'g': 'g:project_name'}}))
 endfunction
 
-function! s:suite.project_name_outside_a_project() abort
+" Name and language are separate steps: nothing recognises this as any kind of
+" project, and the name alone still makes it one
+function! s:suite.project_name_alone_makes_a_project() abort
+  let l:name = ['let g:project_name = "blog"']
+  let l:root = s:project('name-only', {'blog/': [], 'tests/': []})
+  call s:answers({'active': 'declared', 'name': 'blog', 'language': '', 'root': l:root,
+        \ 'sources': ['blog/'], 'tests': ['tests/']},
+        \ s:started_in(l:root, {'before': l:name}))
+  let l:root = s:project('name-only-src', {'src/blog/': []})
+  call s:answers({'active': 'declared', 'sources': ['src/blog/'], 'tests': []},
+        \ s:started_in(l:root, {'before': l:name}))
+endfunction
+
+function! s:suite.project_name_alone_with_no_folder_is_an_error() abort
+  let l:answer = s:started_in(s:project('name-only-typo', {'blog/': []}),
+        \ {'before': ['let g:project_name = "blgo"'], 'ask': {'messages': 'execute("messages")'}})
+  call s:answers({'active': 'declared', 'name': 'blgo', 'sources': []}, l:answer)
+  call assert_match('g:project_name "blgo"', l:answer.messages)
+endfunction
+
+" More than one language is no project, and says so; a name doesn't change that
+function! s:suite.more_than_one_language_is_an_error() abort
+  let l:go = ['module example.com/app']
+  for [l:name, l:files] in [
+        \ ['py-go', {'pyproject.toml': ['[project]', 'name = "p"'], 'go.mod': l:go}],
+        \ ['req-go', {'requirements.txt': [], 'pkg/__init__.py': [], 'go.mod': l:go}],
+        \ ['py-vim', {'setup.py': [], 'pkg/__init__.py': [], 'plugin/a.vim': []}],
+        \ ['go-vim', {'go.mod': l:go, 'plugin/a.vim': []}]]
+    for l:before in [[], ['let g:project_name = "pkg"']]
+      let l:answer = s:started_in(s:project(l:name, l:files), {'before': l:before, 'ask': {'messages': 'execute("messages")'}})
+      call s:answers({'active': '', 'name': '', 'language': '', 'root': '', 'sources': [], 'tests': []}, l:answer)
+      call assert_match('more than one language', l:answer.messages, l:name)
+    endfor
+  endfor
+endfunction
+
+" A strategy of your own isn't a second language
+function! s:suite.registered_type_is_no_second_language() abort
+  let l:answer = s:started_in(s:project('mine-py-one', {'.mine': [], 'pyproject.toml': ['[project]', 'name = "p"']}),
+        \ {'before': [s:mine], 'ask': {'messages': 'execute("messages")'}})
+  call s:answers({'active': 'python'}, l:answer)
+  call assert_notmatch('more than one language', l:answer.messages)
+endfunction
+
+" Recognised by more than pyproject.toml
+function! s:suite.python_recognised_by_its_files() abort
+  for l:file in ['setup.py', 'setup.cfg', 'Pipfile', 'requirements.txt', 'tox.ini', 'manage.py', 'wsgi.py', 'app.py']
+    let l:root = s:project('py-by-' . l:file, {l:file: [], 'blog/__init__.py': [], 'scripts/__init__.py': []})
+    call s:answers({'active': 'python', 'name': 'blog', 'language': 'python', 'root': l:root, 'sources': ['blog/']},
+          \ s:started_in(l:root, {'before': ['let g:project_name = "blog"']}))
+  endfor
+endfunction
+
+function! s:suite.python_without_pyproject_named_after_its_only_package() abort
+  call s:answers({'active': 'python', 'name': 'pkg', 'sources': ['pkg/']},
+        \ s:started_in(s:project('py-setup-only', {'setup.py': [], 'pkg/__init__.py': []})))
+endfunction
+
+" A requirements.txt in docs/ isn't the project: setup.py above it is
+function! s:suite.python_root_is_the_strongest_file() abort
+  let l:root = s:project('py-docs', {'setup.py': [], 'docs/requirements.txt': [], 'pkg/__init__.py': []})
+  call s:answers({'active': 'python', 'root': l:root, 'sources': ['pkg/']},
+        \ s:started_in(l:root . '/docs'))
+endfunction
+
+" A given name skips looking for the declared one, even with a folder of its own
+function! s:suite.project_name_skips_the_declared_name() abort
+  let l:root = s:project('py-both', {'pyproject.toml': ['[project]', 'name = "declared"'],
+        \ 'declared/__init__.py': [], 'mine/__init__.py': []})
+  call s:answers({'name': 'mine', 'sources': ['mine/']},
+        \ s:started_in(l:root, {'before': ['let g:project_name = "mine"']}))
+endfunction
+
+let s:messages = {'messages': 'execute("messages")'}
+let s:two_packages = {'pyproject.toml': [], 'blog/__init__.py': [], 'scripts/__init__.py': []}
+
+" A project's .vim.custom names it, as the dotfiles load it
+function! s:suite.project_name_from_vim_custom() abort
+  let l:root = s:project('py-custom', extend({'.vim.custom': ['let g:project_name = "blog"']}, s:two_packages))
+  let l:answer = s:started_in(l:root, {'ask': s:messages})
+  call s:answers({'active': 'python', 'name': 'blog', 'root': l:root, 'sources': ['blog/']}, l:answer)
+  call assert_notmatch('project_name', l:answer.messages)
+endfunction
+
+" The name says which folder is the code: one that isn't there is a typo
+function! s:suite.project_name_with_no_folder_is_an_error() abort
+  let l:root = s:project('py-typo', extend({'.vim.custom': ['let g:project_name = "blgo"']}, s:two_packages))
+  let l:answer = s:started_in(l:root, {'ask': s:messages})
+  call s:answers({'active': 'python', 'name': 'blgo', 'sources': []}, l:answer)
+  call assert_match('g:project_name "blgo"', l:answer.messages)
+endfunction
+
+function! s:suite.project_name_found_is_no_error() abort
+  for [l:name, l:given, l:package] in [['py-src', 'blog', 'src/blog/__init__.py'],
+        \ ['py-import', 'my-blog', 'my_blog/__init__.py']]
+    let l:answer = s:started_in(s:project(l:name, {'pyproject.toml': [], l:package: []}),
+          \ {'before': ['let g:project_name = ' . string(l:given)], 'ask': s:messages})
+    call assert_notmatch('project_name', l:answer.messages, l:name)
+  endfor
+endfunction
+
+" Only a name you give: a declared one needs no folder
+function! s:suite.declared_name_with_no_folder_is_no_error() abort
+  let l:root = s:project('py-declared', {'pyproject.toml': ['[project]', 'name = "declared"'],
+        \ 'a/__init__.py': [], 'b/__init__.py': []})
+  call assert_notmatch('project_name', s:started_in(l:root, {'ask': s:messages}).messages)
+endfunction
+
+" Go and Vim plugin projects aren't looked for by name
+function! s:suite.project_name_of_another_language_is_no_error() abort
+  for l:files in [{'go.mod': ['module example.com/app']}, {'plugin/a.vim': []}]
+    let l:answer = s:started_in(s:project('other-' . keys(l:files)[0][0], l:files),
+          \ {'before': ['let g:project_name = "chosen"'], 'ask': s:messages})
+    call s:answers({'name': 'chosen'}, l:answer)
+    call assert_notmatch('project_name', l:answer.messages)
+  endfor
+endfunction
+
+" Empty is not a name
+function! s:suite.empty_project_name_names_nothing() abort
+  let l:root = s:project('py-empty', s:two_packages)
   call s:answers({'active': '', 'name': ''},
-        \ s:started_in(s:project('nothing-named', {}), {'before': ['let g:project_name = "x"']}))
+        \ s:started_in(l:root, {'before': ['let g:project_name = ""']}))
 endfunction
 
 function! s:suite.go_from_a_subdirectory() abort
@@ -232,16 +352,17 @@ function! s:suite.vim_plugin_with_plugin_only() abort
         \ s:started_in(s:project('no-script', {'plugin/README': [], 'autoload/x.txt': []})))
 endfunction
 
-" Python, then Go, then Vim: the first that matches
-function! s:suite.python_before_go_before_vim() abort
+" The error names the languages it found
+function! s:suite.more_than_one_language_names_them() abort
   let l:root = s:project('all-three', {
         \ 'pyproject.toml': ['[project]', 'name = "py"'],
         \ 'go.mod': ['module go'],
         \ 'plugin/x.vim': [],
         \ })
-  call s:answers({'active': 'python', 'name': 'py'}, s:started_in(l:root))
+  let l:ask = {'ask': {'messages': 'execute("messages")'}}
+  call assert_match('(go, python, vim)', s:started_in(l:root, l:ask).messages)
   call delete(l:root . '/pyproject.toml')
-  call s:answers({'active': 'go', 'name': 'go'}, s:started_in(l:root))
+  call assert_match('(go, vim)', s:started_in(l:root, l:ask).messages)
 endfunction
 
 function! s:suite.is_test() abort
