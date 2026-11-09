@@ -13,3 +13,7 @@ glow-preview live_preview_in_a_tmux_pane_rerenders_on_save
 # project-detect looks once, from the directory Vim started in: after :cd into
 # a project it's still not detected, so <leader>rp has no scope
 fzf-utils-cd-into-project grep_code_after_cd_into_the_project
+
+# fzf-utils: rg lets a -g glob take precedence over -t, so a language's tests
+# scope with a directory also finds that directory's other files
+fzf-utils-test-directory grep_tests_searches_the_test_directory
