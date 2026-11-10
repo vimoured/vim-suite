@@ -1,8 +1,7 @@
 #!/bin/sh
 # Runs the specs in test/ (or the ones given), each in its own Vim with the
-# dotfiles' config loaded, then the live plugins' own test/run.vim against the
-# same checkouts. Exits non-zero when anything fails, except the tests listed
-# in test/known-failures.txt.
+# dotfiles' config loaded. Exits non-zero when anything fails, except the
+# tests listed in test/known-failures.txt.
 #
 #   bin/test                      everything
 #   bin/test test/fzf-utils.vim   one spec
@@ -53,7 +52,6 @@ knownfailed=
 fixed=
 if [ $# -eq 0 ]; then
   set -- "$root"/test/*.vim
-  live=$(awk '$3 == "live" { print $1 }' "$root/plugins.txt")
 fi
 for spec do
   name=$(basename "$spec" .vim)
@@ -82,10 +80,6 @@ for spec do
       tr -d '\r' <"$vimout" | sed 's/^/#   /'
     fi
   fi
-done
-for name in ${live:-}; do
-  echo "### $name (its own test/run.vim)"
-  (cd "$SUITE_DEPS/$name" && PLUGINS=$SUITE_DEPS vim -Nu NONE -i NONE -Es -S test/run.vim) || failed="$failed $name"
 done
 
 echo

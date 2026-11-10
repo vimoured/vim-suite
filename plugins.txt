@@ -6,8 +6,6 @@
 #   upstream  third-party plugins the frozen ones build on
 #   frozen    no new features: test/<name>.vim pins the behaviour the dotfiles
 #             use, and code outside it is removed
-#   live      still developed; its own test/run.vim runs here, against the
-#             frozen plugins it calls
 #
 # name            repository                 role
 dotfiles          roumail/dotfiles           config
@@ -30,4 +28,4 @@ fzf-utils         vimoured/fzf-utils         frozen
 pytest.vim        vimoured/pytest.vim        frozen
 fugitive-extras   vimoured/fugitive-extras   frozen
 gh-extras         vimoured/gh-extras         frozen
-vim-prompts       vimoured/vim-prompts       live
+vim-prompts       vimoured/vim-prompts       frozen
