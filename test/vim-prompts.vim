@@ -150,8 +150,28 @@ function! s:suite.variant_on_main_needs_a_diff_or_changes() abort
   let l:r = s:preview('/review:pr')
   call assert_equal('', l:r.prompt)
   call assert_equal(['/review:pr needs a diff (:DiffThis, :BranchDiff), or a comparison listed in'
-        \ . ' :Compares, or changes (on this branch; #changes:staged; #changes:<branch>);'
-        \ . ' --force sends it without'], l:r.errors)
+        \ . ' :Compares, or changes (on this branch; #changes:staged; #changes:unstaged;'
+        \ . ' #changes:<branch>); --force sends it without'], l:r.errors)
+endfunction
+
+" A file staged, then edited again; one never added
+function! s:suite.changes_unstaged_sends_what_is_not_staged() abort
+  call writefile(['def add(a, b):', '    return b - a'], s:app . '/app.py')
+  call s:git('add', 'app.py')
+  call writefile(['def add(a, b):', '    return b + a'], s:app . '/app.py')
+  call writefile(['new'], s:app . '/new.py')
+  let l:r = s:preview('#changes:unstaged')
+  call assert_equal([], l:r.errors)
+  call assert_match("Unstaged changes (status, path):\n- M app.py\n"
+        \ . 'Read each with `git diff -- <path>`.', l:r.prompt)
+  call assert_notmatch('new.py', l:r.prompt)
+endfunction
+
+function! s:suite.changes_unstaged_with_everything_staged_has_nothing() abort
+  call writefile(['def add(a, b):', '    return b - a'], s:app . '/app.py')
+  call s:git('add', 'app.py')
+  call assert_equal(['#changes:unstaged has nothing: needs changes (on this branch; #changes:staged;'
+        \ . ' #changes:unstaged; #changes:<branch>)'], s:preview('#changes:unstaged').errors)
 endfunction
 
 function! s:suite.typed_source_replaces_the_personas() abort
@@ -393,6 +413,8 @@ function! s:suite.ai_completes_personas_variants_rules_and_flags() abort
         \ ['Ai /review:', ['/review:pr']],
         \ ['Ai --f', ['--force']],
         \ ['Ai +te', ['+test-setup', '+testing']],
+        \ ['Ai #changes:s', ['#changes:staged']],
+        \ ['Ai #changes:u', ['#changes:unstaged']],
         \ ]
     call assert_equal(l:matches, getcompletion(l:cmdline, 'cmdline'), l:cmdline)
   endfor
