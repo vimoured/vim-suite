@@ -106,7 +106,7 @@ endfunction
 function! s:suite.prs() abort
   PRs
   call assert_equal('gh-extras://prs/repo', bufname())
-  call assert_match('^Open PRs (2)  <CR> checkout  t threads  o browser  / filter  r refresh  q close$',
+  call assert_match('^Open PRs (2)  <CR> checkout  t threads  o browser  dd hide  u undo  / filter  r refresh  q close$',
         \ getline(1))
   call assert_match('^#\s\+who\s\+title\s\+branch\s\+state\s\+age', getline(2))
   call assert_match('^#7 \+mira \+Fix login \+fix-login \+approved \+\d\+d$', getline(3))
@@ -249,7 +249,7 @@ function! s:suite.thread() abort
   Thread 7
   call assert_equal('gh-extras://thread/repo', bufname())
   call assert_equal(['#7: 3 open, 1 your turn  = open/close  <CR> file  :Reply  x resolve'
-        \ . '  u resolved  o browser  / filter  r refresh  q close',
+        \ . '  R resolved  o browser  dd hide  u undo  / filter  r refresh  q close',
         \ 'a.py:9  open  (1)  me: nit',
         \ 'b.py:3  your turn  (2)  mira: because',
         \ 'b.py:5  open, outdated  (1)  me: pending one'], getline(1, '$'))
@@ -262,15 +262,15 @@ function! s:suite.thread() abort
   call assert_equal(3, line('.'))
   normal =
   call assert_equal(4, line('$'))
-  " u shows the resolved thread, in file order
-  normal u
+  " R shows the resolved thread, in file order
+  normal R
   call assert_equal('a.py:1  resolved  (1)  sam: done', getline(2))
-  " Opening the list again, from the file, keeps u and opened threads
+  " Opening the list again, from the file, keeps R and opened threads
   call s:on('^b.py:3 ')
   normal =
   wincmd p
   Thread 7
-  call assert_equal('a.py:1  resolved  (1)  sam: done', getline(2), 'u kept')
+  call assert_equal('a.py:1  resolved  (1)  sam: done', getline(2), 'R kept')
   call assert_match('^    me (', getline(5), '= kept')
   call feedkeys("/sam\<CR>", 'x')
   call assert_equal(['a.py:1  resolved  (1)  sam: done'], getline(2, '$'))
@@ -378,7 +378,7 @@ function! s:suite.thread_x_resolves_and_unresolves() abort
   call s:on('^b.py:3 ')
   call s:type('x')
   call assert_match('resolveReviewThread.*"thread":"T1"', s:sent())
-  normal u
+  normal R
   call s:on('^a.py:1 ')
   call s:type('x')
   call assert_match('unresolveReviewThread.*"thread":"T2"', s:sent())
