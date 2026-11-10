@@ -1,9 +1,10 @@
 #!/bin/sh
 # Stand-in for gh: canned answers to what gh-extras asks, about the repo
-# test/gh-extras.vim builds (GitHub's o/r): open PRs #7 (branch fix-login,
-# whose commits are there) and #8 (head never fetched), merged #5 (mira's)
-# and #4 (sam's), found by a search: author:mira or author:sam narrows it to
-# one, author:nobody to none; other search terms are only logged.
+# test/gh-extras.vim builds (GitHub's o/r): open PRs #7 (mira's, branch
+# fix-login, whose commits are there) and #8 (sam's, head never fetched),
+# merged #5 (mira's) and #4 (sam's), each found by a search: author:mira or
+# author:sam narrows it to one, author:nobody to none; other search terms are
+# only logged.
 # :Threads also gets #9, whose one thread you're not in.
 # @BASE@ and @HEAD7@ are GitHub's main and fix-login: that repo's main and
 # the pushed fix-login (origin/fix-login: local commits aren't on GitHub), or
@@ -41,12 +42,16 @@ case "$*" in
   *'pulls/7/commits'*) rev fix-login ;;
   *'pulls/7 --jq .base.sha') rev main ;;
   *'pulls/7/reviews'*) echo 'https://github.com/o/r/pull/7#pullrequestreview-1' ;;
-  *'states: OPEN, first: $count'*) cat <<'JSON'
-{"data":{"repository":{"pullRequests":{"nodes":[
-{"number":7,"title":"Fix login","headRefName":"fix-login","author":{"login":"mira"},"isDraft":false,"updatedAt":"2026-11-01T00:00:00Z","reviewDecision":"APPROVED"},
-{"number":8,"title":"Add search","headRefName":"search","author":{"login":"sam"},"isDraft":true,"updatedAt":"2026-11-02T00:00:00Z","reviewDecision":null}]}}}}
-JSON
-  ;;
+  *'is:pr is:open'*)
+    pr7='{"number":7,"title":"Fix login","headRefName":"fix-login","author":{"login":"mira"},"isDraft":false,"updatedAt":"2026-11-01T00:00:00Z","reviewDecision":"APPROVED"}'
+    pr8='{"number":8,"title":"Add search","headRefName":"search","author":{"login":"sam"},"isDraft":true,"updatedAt":"2026-11-02T00:00:00Z","reviewDecision":null}'
+    case "$*" in
+      *' author:mira'*) nodes=$pr7 ;;
+      *' author:sam'*) nodes=$pr8 ;;
+      *' author:nobody'*) nodes= ;;
+      *) nodes="$pr7,$pr8" ;;
+    esac
+    printf '%s\n' '{"data":{"search":{"nodes":['"$nodes"']}}}' ;;
   *'is:pr is:merged'*)
     pr4='{"number":4,"title":"Old work","headRefName":"old","author":{"login":"sam"},"mergedAt":"2026-11-01T00:00:00Z","mergeCommit":{"oid":"'$unfetched'"}}'
     pr5=$(fill <<'JSON'
