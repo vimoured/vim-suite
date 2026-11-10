@@ -1,7 +1,9 @@
 #!/bin/sh
 # Stand-in for gh: canned answers to what gh-extras asks, about the repo
 # test/gh-extras.vim builds (GitHub's o/r): open PRs #7 (branch fix-login,
-# whose commits are there) and #8 (head never fetched), merged #5 and #4;
+# whose commits are there) and #8 (head never fetched), merged #5 (mira's)
+# and #4 (sam's), found by a search: author:mira or author:sam narrows it to
+# one, author:nobody to none; other search terms are only logged.
 # :Threads also gets #9, whose one thread you're not in.
 # @BASE@ and @HEAD7@ are GitHub's main and fix-login: that repo's main and
 # the pushed fix-login (origin/fix-login: local commits aren't on GitHub), or
@@ -45,12 +47,19 @@ case "$*" in
 {"number":8,"title":"Add search","headRefName":"search","author":{"login":"sam"},"isDraft":true,"updatedAt":"2026-11-02T00:00:00Z","reviewDecision":null}]}}}}
 JSON
   ;;
-  *'states: MERGED, first: $count'*) fill <<JSON
-{"data":{"repository":{"pullRequests":{"nodes":[
-{"number":4,"title":"Old work","headRefName":"old","author":{"login":"sam"},"mergedAt":"2026-11-01T00:00:00Z","mergeCommit":{"oid":"$unfetched"}},
-{"number":5,"title":"Tidy up","headRefName":"tidy","author":{"login":"mira"},"mergedAt":"2026-11-03T00:00:00Z","mergeCommit":{"oid":"@BASE@"}}]}}}}
+  *'is:pr is:merged'*)
+    pr4='{"number":4,"title":"Old work","headRefName":"old","author":{"login":"sam"},"mergedAt":"2026-11-01T00:00:00Z","mergeCommit":{"oid":"'$unfetched'"}}'
+    pr5=$(fill <<'JSON'
+{"number":5,"title":"Tidy up","headRefName":"tidy","author":{"login":"mira"},"mergedAt":"2026-11-03T00:00:00Z","mergeCommit":{"oid":"@BASE@"}}
 JSON
-  ;;
+)
+    case "$*" in
+      *' author:mira'*) nodes=$pr5 ;;
+      *' author:sam'*) nodes=$pr4 ;;
+      *' author:nobody'*) nodes= ;;
+      *) nodes="$pr4,$pr5" ;;
+    esac
+    printf '%s\n' '{"data":{"search":{"nodes":['"$nodes"']}}}' ;;
   'api graphql --input -')
     case "$input" in
       *addPullRequestReviewThreadReply*)

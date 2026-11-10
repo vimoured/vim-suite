@@ -97,6 +97,15 @@ function! s:sent() abort
   return join(readfile($GH_LOG), "\n")
 endfunction
 
+" The terms :MergedPRs last searched merged PRs for, after the repo:o/r
+" is:pr is:merged it always sends: a field of its own, so up to the next one
+" (or the end of the call)
+function! s:search() abort
+  let l:calls = filter(readfile($GH_LOG), 'v:val =~# ''is:pr is:merged''')
+  return empty(l:calls) ? v:null : trim(matchstr(l:calls[-1],
+        \ 'repo:\S\+ is:pr is:merged\zs.\{-}\ze\%( -[fF] \|$\)'))
+endfunction
+
 function! s:on(text) abort
   call cursor(search(a:text, 'cw'), 1)
 endfunction
@@ -210,6 +219,7 @@ function! s:suite.merged_prs() abort
         \ getline(3), 'latest merged first, its merge commit')
   call assert_match('^#4 \+sam \+Old work \+old \+deadbee ', getline(4))
   call assert_match('-F count=50 ', s:sent(), 'default 50')
+  call assert_equal('', s:search(), 'no terms but the repo''s merged PRs')
 endfunction
 
 function! s:suite.merged_prs_enter_shows_the_merge_commit() abort
@@ -241,6 +251,114 @@ function! s:suite.merged_prs_enter_without_the_commit() abort
   MergedPRs
   call s:on('^#4 ')
   call assert_match('commit deadbee is not here; :Git fetch first', s:type("\<CR>"))
+endfunction
+
+" :MergedPRs [terms]: GitHub's search does the filtering. @who is author:,
+" >date and <date are merged:, a number is the count, the rest goes as typed.
+" The heading has the terms as typed
+
+function! s:suite.merged_prs_by_author() abort
+  MergedPRs @mira
+  call assert_equal('author:mira', s:search())
+  call assert_equal('gh-extras://merged-prs/repo', bufname())
+  call assert_match('^Merged PRs @mira (1)  <CR> commit', getline(1))
+  call assert_match('^#5 \+mira ', getline(3))
+  call assert_equal(3, line('$'))
+endfunction
+
+function! s:suite.merged_prs_by_author_name_from_the_file() abort
+  let g:gh_extras_pr_authors = s:tmp . '/authors.txt'
+  call writefile(['Mira Dev: mira', 'Sam One: sone', 'Sam Two: stwo'], g:gh_extras_pr_authors)
+  " Any case: a login in the file, a name without its spaces, or a first name
+  " only one has
+  for [l:typed, l:login] in [['@MIRA', 'mira'], ['@miradev', 'mira'], ['@Mira', 'mira'],
+        \ ['@SamTwo', 'stwo'], ['@sone', 'sone']]
+    execute 'MergedPRs' l:typed
+    call assert_equal('author:' . l:login, s:search(), l:typed)
+  endfor
+  " Not in the file: a login as typed
+  MergedPRs @zed
+  call assert_equal('author:zed', s:search())
+endfunction
+
+function! s:suite.merged_prs_by_a_first_name_two_have() abort
+  let g:gh_extras_pr_authors = s:tmp . '/authors.txt'
+  call writefile(['Sam One: sone', 'Sam Two: stwo'], g:gh_extras_pr_authors)
+  call writefile([], $GH_LOG)
+  call s:only_says('@sam is Sam One (sone) or Sam Two (stwo)', s:run('MergedPRs @sam'))
+  call assert_equal('', s:sent(), 'gh not asked')
+endfunction
+
+function! s:suite.merged_prs_by_merge_date() abort
+  MergedPRs >2026-10-01
+  call assert_equal('merged:>2026-10-01', s:search())
+  call assert_match('^Merged PRs >2026-10-01 (2)', getline(1))
+  MergedPRs >=2026-10-01 <=2026-10-31
+  call assert_equal('merged:>=2026-10-01 merged:<=2026-10-31', s:search())
+  MergedPRs <2026-10-31
+  call assert_equal('merged:<2026-10-31', s:search())
+endfunction
+
+function! s:suite.merged_prs_by_a_date_that_isnt_one() abort
+  for l:typed in ['>yesterday', '>2026-10', '<10/31/2026']
+    call writefile([], $GH_LOG)
+    call s:only_says(l:typed . ': a date is YYYY-MM-DD', s:run('MergedPRs ' . l:typed), l:typed)
+    call assert_equal('', s:sent(), l:typed . ': gh not asked')
+  endfor
+endfunction
+
+function! s:suite.merged_prs_by_words_and_qualifiers() abort
+  MergedPRs login fix label:bug -author:sam base:main
+  call assert_equal('login fix label:bug -author:sam base:main', s:search())
+  call assert_match('^Merged PRs login fix label:bug -author:sam base:main (2)', getline(1))
+endfunction
+
+function! s:suite.merged_prs_by_a_quoted_phrase() abort
+  MergedPRs "don't panic" @mira
+  call assert_equal('"don''t panic" author:mira', s:search(), 'one term, quotes kept')
+  call assert_match('^Merged PRs "don''t panic" @mira (1)', getline(1))
+endfunction
+
+function! s:suite.merged_prs_terms_in_the_order_typed() abort
+  MergedPRs login @mira >2026-10-01 label:bug
+  call assert_equal('login author:mira merged:>2026-10-01 label:bug', s:search())
+endfunction
+
+function! s:suite.merged_prs_count_with_terms() abort
+  MergedPRs @mira 10
+  call assert_match('-F count=10 ', s:sent())
+  call assert_equal('author:mira', s:search(), 'the number is not a term')
+  call assert_match('^Merged PRs @mira (1)', getline(1), 'nor in the heading')
+  MergedPRs 300 @mira
+  call assert_match('-F count=100 ', s:sent(), 'at most 100, anywhere in the terms')
+endfunction
+
+function! s:suite.merged_prs_none_found() abort
+  MergedPRs @nobody
+  call assert_equal('gh-extras://merged-prs/repo', bufname())
+  call assert_match('^Merged PRs @nobody (0)', getline(1))
+  call assert_equal(2, line('$'), 'the heading only')
+  call assert_notmatch('E\d\+:\|gh-extras:', s:type("\<CR>"), 'enter on nothing')
+endfunction
+
+function! s:suite.merged_prs_refresh_keeps_the_terms() abort
+  MergedPRs @mira
+  call writefile([], $GH_LOG)
+  call s:type('r')
+  call assert_equal('author:mira', s:search())
+  call assert_match('^Merged PRs @mira (1)', getline(1))
+endfunction
+
+function! s:suite.merged_prs_again_with_other_terms() abort
+  MergedPRs @mira
+  MergedPRs @sam
+  call assert_equal('gh-extras://merged-prs/repo', bufname(), 'the same list')
+  call assert_equal(2, winnr('$'), 'in the same window')
+  call assert_match('^Merged PRs @sam (1)', getline(1))
+  call assert_match('^#4 \+sam ', getline(3))
+  MergedPRs
+  call assert_match('^Merged PRs (2)', getline(1), 'none: all of them again')
+  call assert_equal('', s:search())
 endfunction
 
 " :Thread, :Threads
