@@ -97,13 +97,14 @@ function! s:sent() abort
   return join(readfile($GH_LOG), "\n")
 endfunction
 
-" The terms :MergedPRs last searched merged PRs for, after the repo:o/r
-" is:pr is:merged it always sends: a field of its own, so up to the next one
-" (or the end of the call)
-function! s:search() abort
-  let l:calls = filter(readfile($GH_LOG), 'v:val =~# ''is:pr is:merged''')
+" The terms :MergedPRs (or, given 'open', :PRs) last searched for, after the
+" repo:o/r is:pr is:merged (is:open) it always sends: a field of its own, so
+" up to the next one (or the end of the call)
+function! s:search(...) abort
+  let l:is = 'is:pr is:' . get(a:, 1, 'merged')
+  let l:calls = filter(readfile($GH_LOG), 'stridx(v:val, l:is) >= 0')
   return empty(l:calls) ? v:null : trim(matchstr(l:calls[-1],
-        \ 'repo:\S\+ is:pr is:merged\zs.\{-}\ze\%( -[fF] \|$\)'))
+        \ 'repo:\S\+ ' . l:is . '\zs.\{-}\ze\%( -[fF] \|$\)'))
 endfunction
 
 function! s:on(text) abort
@@ -130,8 +131,46 @@ endfunction
 function! s:suite.prs_count() abort
   PRs
   call assert_match('-F count=20 ', s:sent(), 'default 20')
+  call assert_equal('', s:search('open'), 'no terms but the repo''s open PRs')
   PRs 300
   call assert_match('-F count=100 ', s:sent(), 'at most 100')
+endfunction
+
+" :PRs [terms]: as :MergedPRs' terms, but >date and <date are updated:
+
+function! s:suite.prs_by_terms() abort
+  PRs @mira
+  call assert_equal('author:mira', s:search('open'))
+  call assert_equal('gh-extras://prs/repo', bufname())
+  call assert_match('^Open PRs @mira (1)  <CR> checkout', getline(1))
+  call assert_match('^#7 \+mira ', getline(3))
+  call assert_equal(3, line('$'))
+  PRs "don't panic" @sam >=2026-10-01 <2026-11-01 label:bug 5
+  call assert_equal('"don''t panic" author:sam updated:>=2026-10-01 updated:<2026-11-01 label:bug',
+        \ s:search('open'))
+  call assert_match('-F count=5 ', s:sent())
+  call assert_match('^Open PRs "don''t panic" @sam >=2026-10-01 <2026-11-01 label:bug (1)', getline(1))
+endfunction
+
+function! s:suite.prs_by_author_name_from_the_file() abort
+  let g:gh_extras_pr_authors = s:tmp . '/authors.txt'
+  call writefile(['Sam One: sone', 'Sam Two: stwo'], g:gh_extras_pr_authors)
+  PRs @SamTwo
+  call assert_equal('author:stwo', s:search('open'))
+  call writefile([], $GH_LOG)
+  call s:only_says('@sam is Sam One (sone) or Sam Two (stwo)', s:run('PRs @sam'))
+  call s:only_says('>yesterday: a date is YYYY-MM-DD', s:run('PRs >yesterday'))
+  call assert_equal('', s:sent(), 'gh not asked')
+endfunction
+
+function! s:suite.prs_refresh_keeps_the_terms() abort
+  PRs @sam
+  call writefile([], $GH_LOG)
+  call s:type('r')
+  call assert_equal('author:sam', s:search('open'))
+  call assert_match('^Open PRs @sam (1)', getline(1))
+  PRs
+  call assert_match('^Open PRs (2)', getline(1), 'none: all of them again')
 endfunction
 
 function! s:suite.prs_author_names_from_the_file() abort
