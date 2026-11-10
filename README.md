@@ -14,7 +14,7 @@ Needs Vim 9.0 or newer and git.
 
 ```sh
 bin/fetch     # shallow-clone everything in plugins.txt into deps/
-bin/test      # every spec, then each live plugin's own test/run.vim
+bin/test      # every spec
 bin/test test/buffer-tools.vim     # one spec
 ```
 
@@ -33,7 +33,7 @@ updates it to that branch's latest commit. `deps/` is not committed.
 
 | Path                    | What                                                                   |
 | ----------------------- | ---------------------------------------------------------------------- |
-| `plugins.txt`           | every repository checked out, with its role (config, runner, upstream, frozen, live) |
+| `plugins.txt`           | every repository checked out, with its role (config, runner, upstream, frozen) |
 | `bin/fetch`, `bin/pin`, `bin/pin-branch`, `bin/test`, `bin/coverage`, `bin/tag` | check out, pin one plugin at a commit, pin every repository with a branch of that name, run, list lines never run, tag a plugin's merge |
 | `test/<plugin>.vim`     | the spec of one frozen plugin                                          |
 | `test/dotfiles.vim`     | the config loads without an error                                      |
