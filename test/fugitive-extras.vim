@@ -546,7 +546,7 @@ function! s:suite.branch_commits_list() abort
   edit a.txt
   call s:type("\<Plug>(fugitive-extras-branch-commits)")
   call assert_equal('fugitive-extras://commits/repo', bufname())
-  call assert_equal('Commits on feature not on main (2)  <CR> commit  / filter  r refresh  q close',
+  call assert_equal('Commits on feature not on main (2)  <CR> commit  dd hide  u undo  / filter  r refresh  q close',
         \ getline(1))
   call assert_match('^\x\{7,}  t \+\S.* ago \+add b (HEAD -> feature)$', getline(2))
   call assert_match('  change a$', getline(3))

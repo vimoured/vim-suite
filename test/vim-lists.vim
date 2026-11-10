@@ -160,9 +160,80 @@ function! s:suite.no_match_no_filter_key() abort
   call roumail_lists#open('test://plain', {'fetch': {-> [1]},
         \ 'heading': {_ -> ['Plain']}, 'rows': {items -> [{'lines': ['one'], 'item': {}}]},
         \ 'id': {_ -> 1}, 'keys': []}, {})
-  call assert_equal('Plain  r refresh  q close', getline(1))
+  call assert_equal('Plain  dd hide  u undo  r refresh  q close', getline(1))
   call assert_equal('', maparg('/', 'n'))
-  call assert_equal('', maparg('dd', 'n'), 'no delete, no dd')
+endfunction
+
+" A list of words without delete: dd hides
+function! s:open_hiding() abort
+  call roumail_lists#open('test://hiding', {
+        \ 'fetch': {-> copy(g:words)},
+        \ 'heading': {items -> ['Words (' . len(items) . ')']},
+        \ 'rows': {items -> map(copy(items), {_, w -> {'lines': [w], 'item': {'w': w}}})},
+        \ 'id': {item -> item.w}, 'match': {item -> item.w}, 'keys': [
+        \   {'key': 'x', 'hint': 'refresh', 'call': function('roumail_lists#refresh')}]}, {})
+endfunction
+
+" dd hides until r; u brings back the last hidden, and says so when there's none
+function! s:suite.hide_and_undo() abort
+  call s:open_hiding()
+  call assert_equal('Words (3)  x refresh  dd hide  u undo  / filter  r refresh  q close',
+        \ getline(1))
+  call cursor(3, 1)
+  normal dd
+  call assert_equal(['apple', 'banana', 'cherry'], g:words, 'nothing removed')
+  call assert_equal(['apple', 'cherry'], getline(2, '$'))
+  call assert_match('^Words (3), 1 hidden  ', getline(1))
+  call assert_equal(3, line('.'))
+  normal dd
+  call assert_equal(['apple'], getline(2, '$'))
+  call assert_match('^Words (3), 2 hidden  ', getline(1))
+  " The heading: nothing hidden
+  call cursor(1, 1)
+  normal dd
+  call assert_equal(['apple'], getline(2, '$'))
+  normal u
+  call assert_equal(['apple', 'cherry'], getline(2, '$'))
+  call assert_equal('cherry', getline('.'), 'on the item back')
+  normal u
+  call assert_equal(['apple', 'banana', 'cherry'], getline(2, '$'))
+  call assert_equal('banana', getline('.'))
+  call assert_notmatch('hidden', getline(1))
+  let v:errmsg = ''
+  call assert_match('Nothing to undo', execute('normal u'))
+  call assert_equal('', v:errmsg, 'not an error')
+  call assert_equal(4, line('$'))
+endfunction
+
+" Filtering doesn't show what dd hid; a plugin's refresh() keeps it hidden,
+" r brings it back
+function! s:suite.hide_filter_and_refresh() abort
+  call s:open_hiding()
+  call cursor(3, 1)
+  normal dd
+  call feedkeys("/an\<CR>", 'x')
+  call assert_equal(1, line('$'), 'banana, the only match, is hidden')
+  call assert_match('^Words (3), 1 hidden, 0 matching ''an''', getline(1))
+  normal u
+  call assert_equal(['banana'], getline(2, '$'))
+  call feedkeys("/\<C-u>\<CR>", 'x')
+  normal dd
+  normal x
+  call assert_equal(['banana', 'cherry'], getline(2, '$'), 'refresh() keeps it hidden')
+  normal r
+  call assert_equal(['apple', 'banana', 'cherry'], getline(2, '$'))
+  call assert_match('Nothing to undo', execute('normal u'), 'r forgets what was hidden')
+endfunction
+
+" Where dd removes, u can't bring it back, and says so
+function! s:suite.no_undo_after_delete() abort
+  call s:open()
+  call assert_notmatch('u undo', getline(1))
+  normal dd
+  let v:errmsg = ''
+  call assert_match('Nothing to undo: dd removes for good here', execute('normal u'))
+  call assert_equal('', v:errmsg)
+  call assert_equal(['banana', 'cherry'], getline(2, '$'))
 endfunction
 
 function! s:suite.close() abort
