@@ -54,9 +54,9 @@ JSON
 JSON
 )
     case "$*" in
-      *author:mira*) nodes=$pr5 ;;
-      *author:sam*) nodes=$pr4 ;;
-      *author:nobody*) nodes= ;;
+      *' author:mira'*) nodes=$pr5 ;;
+      *' author:sam'*) nodes=$pr4 ;;
+      *' author:nobody'*) nodes= ;;
       *) nodes="$pr4,$pr5" ;;
     esac
     printf '%s\n' '{"data":{"search":{"nodes":['"$nodes"']}}}' ;;
