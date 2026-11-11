@@ -39,6 +39,14 @@ function! s:suite.starts_without_errors() abort
   call assert_equal([], g:suite.errors)
 endfunction
 
+" <leader>gj glues back the lines a terminal's scrollback broke a command into,
+" in the clipboard, so it pastes as one line
+function! s:suite.join_clipboard_lines() abort
+  call setreg('+', "uv run pytest tests/test_ord\ner.py::TestOrder -q\n")
+  call feedkeys("\<Space>gj", 'x')
+  call assert_equal('uv run pytest tests/test_order.py::TestOrder -q', getreg('+'))
+endfunction
+
 " pdb's vdiff (.pdbrc.py), in a Vim :terminal, asks Vim through the terminal
 " API (Tapi_PdbDiff, vim-rc/plugin/pdb_diff.vim) to diff the two values,
 " normalized to sorted, indented JSON, expected left and actual right, in one
