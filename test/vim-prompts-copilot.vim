@@ -5,7 +5,7 @@
 " #Note: the flags are checked against `copilot --help` (1.0.103) only. On a
 " machine with Copilot, check that a one-off with each value can read a file
 " outside the repository and fetch a URL:
-"   :let g:prompts_copilot_approval = 'assisted' | Ai! -- fetch https://example.com
+"   :let g:prompts_copilot_approval = 'assisted' | Ai -- fetch https://example.com
 let g:suite_spec = expand('<sfile>')
 execute 'source' fnameescape(expand('<sfile>:p:h') . '/helper/env.vim')
 let s:suite = themis#suite('vim-prompts-copilot')
@@ -38,23 +38,23 @@ endfunction
 
 function! s:suite.oneoff_approves_with_the_judge_by_default() abort
   call assert_match('would run: copilot --experimental --assisted-approval --allow-all-tools'
-        \ . ' --allow-all-urls --allow-all-paths -p <prompt>%=', s:line('!'))
+        \ . ' --allow-all-urls --allow-all-paths -p <prompt>%=', s:line(''))
 endfunction
 
 function! s:suite.oneoff_approves_everything_with_all() abort
   let g:prompts_copilot_approval = 'all'
-  call assert_match('would run: copilot --allow-all -p <prompt>%=', s:line('!'))
+  call assert_match('would run: copilot --allow-all -p <prompt>%=', s:line(''))
 endfunction
 
 function! s:suite.unknown_approval_is_an_error_and_the_judge_approves() abort
   let g:prompts_copilot_approval = 'yolo'
   call assert_match('would run: copilot --experimental --assisted-approval --allow-all-tools'
-        \ . ' --allow-all-urls --allow-all-paths -p <prompt>%=', s:line('!'))
+        \ . ' --allow-all-urls --allow-all-paths -p <prompt>%=', s:line(''))
   call assert_match('vim-prompts: g:prompts_copilot_approval is assisted or all, not yolo',
         \ execute('messages'))
 endfunction
 
 " Its own config decides; the dotfiles' auto mode has no flag
 function! s:suite.session_starts_as_its_config_says() abort
-  call assert_match('would run: copilot -i <prompt>%=', s:line(''))
+  call assert_match('would run: copilot -i <prompt>%=', s:line('!'))
 endfunction

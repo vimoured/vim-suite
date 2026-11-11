@@ -160,7 +160,7 @@ function! s:suite.changes_unstaged_sends_what_is_not_staged() abort
   call s:git('add', 'app.py')
   call writefile(['def add(a, b):', '    return b + a'], s:app . '/app.py')
   call writefile(['new'], s:app . '/new.py')
-  let l:r = s:preview('#changes:unstaged')
+  let l:r = s:preview('#changes:unstaged', '', '!')
   call assert_equal([], l:r.errors)
   call assert_match("Unstaged changes (status, path):\n- M app.py\n"
         \ . 'Read each with `git diff -- <path>`.', l:r.prompt)
@@ -226,7 +226,7 @@ function! s:suite.malformed_front_matter_refuses() abort
         \ [['context: [[+testing, here]]'], 'context: +testing is always sent, not one of [alternatives]'],
         \ [['context: [[[here]]]'], 'context: one level of [alternatives], of sources'],
         \ [['input: maybe'], 'input: required or optional'],
-        \ [['answer: later'], 'answer: oneoff or session'],
+        \ [['answer: oneoff'], 'answer: is gone; :Ai asks once, :Ai! opens a session'],
         \ ]
     call s:write(s:personas . '/bad.md', ['---'] + l:lines + ['---', 'x'])
     call assert_equal(['~/.config/vim-prompts/personas/bad.md: ' . l:error], s:preview('/bad').errors)
@@ -269,16 +269,64 @@ function! s:suite.bang_makes_review_a_session_writing_its_comments() abort
 endfunction
 
 function! s:suite.agent_comments_in_a_repository_go_to_its_git_dir() abort
-  let l:r = s:preview('#agent_comments', '%')
+  let l:r = s:preview('#agent_comments', '%', '!')
   call assert_notmatch(' -p ', l:r.line)
   call assert_match('to `' . s:app . '/.git/vim-prompts/comments/', l:r.prompt)
   call assert_notmatch('--add-dir', l:r.line)
 endfunction
 
-function! s:suite.bang_makes_a_session_ask_a_oneoff() abort
-  let l:r = s:preview('#agent_comments is this right', '%', '!')
+function! s:suite.oneoff_asks_for_its_comments_in_the_answer() abort
+  let l:r = s:preview('#agent_comments is this right', '%')
   call assert_match(' -p <prompt>', l:r.line)
   call assert_match('```vim-prompts-comments', l:r.prompt)
+endfunction
+
+" :Ai asks once and :Ai! opens a session, whatever the persona
+function! s:suite.ai_asks_once_and_bang_opens_a_session() abort
+  call assert_match(' -p <prompt>', s:preview('#here what is this').line)
+  call assert_notmatch(' -p ', s:preview('#here what is this', '', '!').line)
+endfunction
+
+function! s:suite.oneoff_without_a_question_points_at_a_session() abort
+  call assert_equal(['a one-off needs a question or a persona; :Ai! opens a session with it'],
+        \ s:preview('#here').errors)
+  let l:r = s:preview('#here', '', '!')
+  call assert_equal([], l:r.errors)
+  call assert_match('Read this, then wait for my question.', l:r.prompt)
+endfunction
+
+function! s:suite.ai_alone_is_an_error() abort
+  for l:args in ['', ' --plan-mode']
+    let l:tabs = tabpagenr('$')
+    execute 'Ai' . l:args
+    call assert_equal([':Ai asks once and needs something to ask; :Ai! opens a session'], s:errors())
+    call assert_equal(-1, bufnr('ai-oneoff://*'))
+    call assert_equal(l:tabs, tabpagenr('$'))
+  endfor
+endfunction
+
+function! s:suite.ai_bang_alone_opens_the_agent() abort
+  let l:tabs = tabpagenr('$')
+  Ai!
+  call assert_equal([], s:errors())
+  call assert_equal(l:tabs + 1, tabpagenr('$'))
+  " The agent (`true`) exits at once: vim-dispatch removes its terminal then,
+  " which must happen before the next test wipes it
+  let l:term = bufnr()
+  for l:i in range(100)
+    if !buflisted(l:term)
+      break
+    endif
+    sleep 20m
+  endfor
+  silent! tabonly!
+endfunction
+
+function! s:suite.preview_alone_says_what_each_does() abort
+  call assert_equal([':Ai asks once and needs something to ask; :Ai! opens a session'],
+        \ s:preview('').errors)
+  call assert_match(':Ai! with these sends nothing: it opens the agent',
+        \ execute('AiPreview!'))
 endfunction
 
 " The dotfiles start sessions in auto mode (g:prompts_mode)
@@ -286,21 +334,21 @@ function! s:suite.session_starts_in_the_mode_the_dotfiles_set() abort
   let g:prompts_agent_table.modal = {'cmd': ['true'], 'prompt': ['-i'],
         \ 'modes': {'ask': ['--ask'], 'auto': ['--auto']}, 'oneoff_modes': {'auto': ['--yes']}}
   let g:prompts_agent = 'modal'
-  call assert_match('true --auto -i <prompt>', s:preview('-- hi').line)
+  call assert_match('true --auto -i <prompt>', s:preview('-- hi', '', '!').line)
 endfunction
 
 function! s:suite.oneoff_runs_in_its_auto_mode() abort
   let g:prompts_agent_table.modal = {'cmd': ['true'], 'prompt': ['-i'],
         \ 'modes': {'ask': ['--ask'], 'auto': ['--auto']}, 'oneoff_modes': {'auto': ['--yes']}}
   let g:prompts_agent = 'modal'
-  call assert_match('true --yes -p <prompt>', s:preview('-- hi', '', '!').line)
+  call assert_match('true --yes -p <prompt>', s:preview('-- hi').line)
 endfunction
 
 function! s:suite.oneoff_runs_in_the_mode_asked_for() abort
   let g:prompts_agent_table.modal = {'cmd': ['true'], 'prompt': ['-i'],
         \ 'modes': {'ask': ['--ask'], 'auto': ['--auto']}, 'oneoff_modes': {'auto': ['--yes']}}
   let g:prompts_agent = 'modal'
-  call assert_match('true --ask -p <prompt>', s:preview('--ask-mode -- hi', '', '!').line)
+  call assert_match('true --ask -p <prompt>', s:preview('--ask-mode -- hi').line)
 endfunction
 
 " A one-off that answers: its comments are saved for :AiComments
@@ -393,7 +441,7 @@ endfunction
 function! s:suite.draft_asks_from_where_it_is_sent() abort
   enew
   setlocal buftype=nofile
-  AiDraft! #here what is this
+  AiDraft #here what is this
   call assert_equal('ai-draft://ask', bufname())
   wincmd p
   edit app.py

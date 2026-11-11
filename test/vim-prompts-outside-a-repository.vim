@@ -28,10 +28,10 @@ function! s:suite.after() abort
   call delete(s:tmp, 'rf')
 endfunction
 
-" %AiPreview #agent_comments: the prompt and the command line
+" %AiPreview! #agent_comments: the session's prompt and the command line
 function! s:preview() abort
   silent! bwipeout ai-preview://
-  %AiPreview #agent_comments
+  %AiPreview! #agent_comments
   let l:result = {'prompt': join(getline(1, '$'), "\n"), 'line': &l:statusline}
   wincmd p
   return l:result
