@@ -231,6 +231,20 @@ function! s:suite.a_file_reopens_where_the_cursor_was() abort
   call assert_equal(30, line('.'))
 endfunction
 
+" A file's version in git (fugitive://) isn't a file on disk: no position
+" kept for it
+function! s:suite.a_fugitive_buffer_opens_at_the_top() abort
+  call s:file('long.txt', 50)
+  call system('git init -q && git add long.txt'
+        \ . ' && git -c user.name=t -c user.email=t@t commit -qm long')
+  Gedit HEAD:long.txt
+  call assert_match('^fugitive://', bufname())
+  call cursor(30, 1)
+  edit other.txt
+  Gedit HEAD:long.txt
+  call assert_equal(1, line('.'))
+endfunction
+
 function! s:suite.a_commit_message_opens_at_the_top() abort
   call s:file('COMMIT_EDITMSG', 50)
   edit COMMIT_EDITMSG
