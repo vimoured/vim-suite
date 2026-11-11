@@ -227,6 +227,17 @@ function! s:suite.diff_older_side_on_the_left() abort
   call assert_equal([l:base, s:git('rev-parse', 'HEAD')], s:diff_revs(), ':BranchDiff')
 endfunction
 
+" The cursor on the right, the newer side, in every diff as it opens
+function! s:suite.diff_cursor_on_the_right() abort
+  call s:feature()
+  call writefile(['one', 'TWO', 'three', 'four'], s:repo . '/a.txt')
+  for l:cmd in ['DiffThis', 'DiffThis!', 'DiffCommit', 'DiffCommit!', 'BranchDiff', 'BranchDiff!']
+    silent! tabonly | silent! only | edit a.txt
+    execute l:cmd
+    call assert_equal(s:diff_wins()[-1], winnr(), ':' . l:cmd)
+  endfor
+endfunction
+
 function! s:suite.diff_commit_refused() abort
   edit a.txt
   call s:only_says('unknown commit nope', s:run('DiffCommit nope'))
