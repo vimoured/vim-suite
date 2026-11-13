@@ -348,14 +348,14 @@ function! s:suite.save_draft_outside_git() abort
   call s:draft(['x'])
   DraftSave
   call assert_equal(1, len(s:saves($XDG_STATE_HOME . '/' . s:place(s:tmp . '/plain') . '/vim-draft')))
-  DraftList
-  call assert_equal(['x'], map(getloclist(0), 'v:val.text'))
-  lclose
+  Drafts
+  call assert_equal(2, line('$'))
+  call assert_match('^\d\{8}-\d\{6} .* x$', getline(2))
+  normal q
   " Another directory's drafts are its own
-  call setloclist(0, [])
   cd sub
-  call assert_match('^\nDraftList: nothing saved in ', s:run('DraftList'))
-  call assert_equal([], getloclist(0))
+  Drafts
+  call assert_equal(['(no drafts here: save one with :DraftSave)'], getline(2, '$'))
 endfunction
 
 " Any other buffer, a plugin's output say, is saved as a draft of its own
@@ -378,23 +378,7 @@ function! s:suite.save_other_buffer_in_repository() abort
   call assert_equal([], s:saves(s:scratches))
 endfunction
 
-function! s:suite.list() abort
-  call mkdir(s:scratches, 'p')
-  call writefile(['older'], s:scratches . '/a.txt')
-  call writefile(['newer'], s:scratches . '/b.txt')
-  call system('touch -t 202001010000 ' . shellescape(s:scratches . '/a.txt'))
-  call system('touch -t 202101010000 ' . shellescape(s:scratches . '/b.txt'))
-  " From a draft: the drafts of the buffer it was opened from
-  execute 'edit' fnameescape(s:tmp . '/repo/file.txt')
-  call s:draft(['in the repo'])
-  DraftSave
-  DraftList
-  call assert_equal(['in the repo', 'newer', 'older'], map(getloclist(0), 'v:val.text'))
-  call assert_equal('DraftList', getloclist(0, {'title': 1}).title)
-endfunction
-
-""" vim-place's save contract and vim-lists' list of saves, not kept yet:
-""" known failures until vim-draft keeps them (test/known-failures.txt)
+""" Names and :Drafts: vim-place's save contract and vim-lists' list of saves
 
 " A name: the file of that name where vim-place keeps the drafts, saved over
 " without !
@@ -452,8 +436,8 @@ function! s:suite.without_vim_place() abort
   call s:draft(['x'])
   call assert_equal("\nvim-draft: :DraftSave of a draft needs vim-place (with vim-fugitive), which is not installed",
         \ s:without_place('DraftSave'))
-  call assert_equal("\nvim-draft: :DraftList needs vim-place (with vim-fugitive), which is not installed",
-        \ s:without_place('DraftList'))
+  call assert_equal("\nvim-draft: :Drafts needs vim-place (with vim-fugitive), which is not installed",
+        \ s:without_place('Drafts'))
   " A scratch, and a draft to a path, need no vim-place
   call assert_match('^\nDraftSave: wrote ', s:without_place('DraftSave ' . fnameescape(s:tmp . '/d.txt')))
   Scratch!

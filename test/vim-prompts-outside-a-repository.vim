@@ -50,5 +50,5 @@ endfunction
 function! s:suite.ai_comments_completes_the_reviews_written_there() abort
   call mkdir(s:comments, 'p')
   call writefile(['notes.txt:1: 1. [nit] say more'], s:comments . '/20260101-000000-1.txt')
-  call assert_equal(['20260101-000000-1.txt'], getcompletion('AiComments ', 'cmdline'))
+  call assert_equal(['20260101-000000-1'], getcompletion('AiComments ', 'cmdline'))
 endfunction

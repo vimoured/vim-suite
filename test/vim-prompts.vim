@@ -397,8 +397,8 @@ function! s:suite.ai_comments_lists_the_oneoffs_comments() abort
   call assert_equal([2, 1], map(getqflist(), 'v:val.lnum'))
 endfunction
 
-""" vim-place's save contract and vim-lists' list of saves, not kept yet:
-""" known failures until vim-prompts keeps them (test/known-failures.txt)
+""" Reviews by name and :AiReviews: vim-place's save contract and vim-lists'
+""" list of saves
 
 " An Ex command; returns its messages, or the error it raised
 function! s:run(cmd) abort
