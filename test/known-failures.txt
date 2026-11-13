@@ -14,11 +14,3 @@ glow-preview live_preview_in_a_tmux_pane_rerenders_on_save
 # a project it's still not detected, so <leader>rp has no scope
 fzf-utils-cd-into-project grep_code_after_cd_into_the_project
 
-# Consolidating the save commands: vim-place's save contract and vim-lists'
-# list of saves, which these plugins don't keep yet. :DraftSave takes no
-# names and :DraftList isn't :Drafts on vim-lists; the agent's reviews are
-# named with their .txt and listed by :AiCommentsList, not :AiReviews
-vim-draft save_a_name
-vim-draft drafts
-vim-prompts review_names
-vim-prompts reviews
