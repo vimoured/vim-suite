@@ -2,6 +2,8 @@
 " and visual; the shell's `vim . +BranchDiff`), what vim-prompts and gh-extras
 " call (comments#list, #load, #check, complete_branch, main_ref,
 " compares#list), and its README, through its commands, <Plug> maps and keys.
+" :CommentsSave / :CommentsLoad keep vim-place's save contract (its README),
+" with the deviations in fugitive-extras' README.
 " Each test has a new repo, at a new path: comparisons are kept per git dir
 " for the session.
 let g:suite_spec = expand('<sfile>')
@@ -784,14 +786,15 @@ function! s:suite.save_and_load_back_where_the_lines_are() abort
   call assert_match('/\d\{8}-\d\{6}\.txt$', l:saves[0])
   call assert_equal(['a.txt:2: check this'], readfile(l:saves[0]))
   call assert_equal(l:saves[0] . '.anchors', l:saves[1])
-  call assert_equal([fnamemodify(l:saves[0], ':t')], getcompletion('CommentsLoad 2', 'cmdline'))
+  call assert_equal([fnamemodify(l:saves[0], ':t:r')], getcompletion('CommentsLoad 2', 'cmdline'))
   call assert_equal(['./a.txt'], getcompletion('CommentsLoad ./a', 'cmdline'), 'a path: files')
 
   CommentsClear
   call assert_equal([], s:comments())
   call writefile(['zero', '  one', '    two', 'three'], s:repo . '/a.txt')
   edit!
-  call assert_match("\nReview comments: 1, 1 moved to where their lines are now$", s:run('CommentsLoad'))
+  call assert_match('\V\nReview comments: 1 from ' . fnamemodify(l:saves[0], ':~')
+        \ . ', 1 moved to where their lines are now\$', s:run('CommentsLoad'))
   call assert_equal(['quickfix', 'Review'], [&buftype, getqflist({'title': 1}).title], 'the list open')
   call assert_equal([{'path': 'a.txt', 'start': 3, 'end': 3, 'body': 'check this'}], s:comments(),
         \ 'indentation ignored')
@@ -835,7 +838,7 @@ function! s:suite.load_with_lines_gone_and_back() abort
   CommentsClear
   call writefile(['one', 'three'], s:repo . '/a.txt')
   edit!
-  call assert_match("\nReview comments: 1, 1 whose lines are gone (W)$", s:run('CommentsLoad'))
+  call assert_match("\nReview comments: 1 from .*, 1 whose lines are gone (W)$", s:run('CommentsLoad'))
   cclose
   call assert_equal([{'path': 'a.txt', 'start': 2, 'end': 2, 'body': 'on two', 'orphaned': 1}], s:comments())
   " Saved again, it keeps its anchor: found once its lines come back
@@ -868,6 +871,135 @@ function! s:suite.save_with_no_comments() abort
   CommentsClear
   execute 'CommentsSave' fnameescape(s:tmp . '/r.txt')
   call assert_equal([[], 0], [readfile(s:tmp . '/r.txt'), filereadable(s:tmp . '/r.txt.anchors')])
+endfunction
+
+""" :CommentsSave / :CommentsLoad: vim-place's save contract
+
+" An existing directory, or a path ending in /: a new file in it, with its
+" anchors beside it
+function! s:suite.save_to_a_directory() abort
+  edit a.txt
+  2Comment kept
+  call mkdir(s:tmp . '/existing')
+  execute 'CommentsSave' fnameescape(s:tmp . '/existing')
+  execute 'CommentsSave' fnameescape(s:tmp . '/existing')
+  execute 'CommentsSave' fnameescape(s:tmp . '/new/dir/')
+  let l:existing = glob(s:tmp . '/existing/*.txt', 1, 1)
+  call assert_equal(2, len(l:existing), 'a new file each time')
+  for l:file in l:existing
+    call assert_match('/existing/\d\{8}-\d\{6}\(-2\)\=\.txt$', l:file)
+    call assert_equal(['a.txt:2: kept'], readfile(l:file))
+    call assert_true(filereadable(l:file . '.anchors'))
+  endfor
+  let l:new = glob(s:tmp . '/new/dir/*', 1, 1)
+  call assert_equal(2, len(l:new))
+  call assert_match('/new/dir/\d\{8}-\d\{6}\.txt$', l:new[0])
+  call assert_equal([], s:saves('main'), 'nothing in the branch''s directory')
+endfunction
+
+" With no argument: a new file, then the same one again; the file the
+" comments were loaded from; and each branch's own file
+function! s:suite.save_with_no_argument() abort
+  edit a.txt
+  2Comment first
+  CommentsSave
+  let l:saves = s:saves('main')
+  call assert_equal(2, len(l:saves))
+  1Comment second
+  CommentsSave
+  call assert_equal(l:saves, s:saves('main'), 'the same file')
+  call assert_equal(2, len(review#read(l:saves[0]).comments))
+  " Loaded, the comments save back to their file
+  let l:file = s:tmp . '/kept.txt'
+  call writefile(['a.txt:3: from a file'], l:file)
+  execute 'CommentsLoad' fnameescape(l:file)
+  cclose
+  3Comment added
+  CommentsSave
+  call assert_equal(['a.txt:3: from a file', 'a.txt:3: added'], readfile(l:file))
+  call assert_equal(l:saves, s:saves('main'))
+  " Another branch: a file of its own
+  CommentsClear
+  silent Git checkout -q -b feature
+  1Comment on feature
+  CommentsSave
+  call assert_equal(2, len(s:saves('feature')))
+  call assert_equal(['a.txt:3: from a file', 'a.txt:3: added'], readfile(l:file))
+endfunction
+
+function! s:suite.save_and_load_a_name() abort
+  edit a.txt
+  2Comment in wip
+  CommentsSave wip
+  let l:wip = s:repo . '/.git/fugitive-extras/comments/main/wip.txt'
+  call assert_equal(['a.txt:2: in wip'], readfile(l:wip))
+  call assert_true(filereadable(l:wip . '.anchors'))
+  " Saved over without !
+  CommentsClear
+  1Comment wip again
+  CommentsSave wip
+  call assert_equal(['a.txt:1: wip again'], readfile(l:wip))
+  CommentsClear
+  call assert_match('\V\nReview comments: 1 from ' . fnamemodify(l:wip, ':~') . '\$', s:run('CommentsLoad wip'))
+  call assert_equal([{'path': 'a.txt', 'start': 1, 'end': 1, 'body': 'wip again'}], s:comments())
+  cclose
+  " Starting with .: a path
+  CommentsSave ./k.txt
+  call assert_equal(['a.txt:1: wip again'], readfile(s:repo . '/k.txt'))
+endfunction
+
+function! s:suite.names_complete_newest_first() abort
+  edit a.txt
+  1Comment one
+  CommentsSave work
+  sleep 1100m
+  CommentsSave wip
+  call assert_equal(['wip', 'work'], getcompletion('CommentsLoad w', 'cmdline'))
+  call assert_equal(['wip'], getcompletion('CommentsSave wi', 'cmdline'))
+  call assert_equal(['./a.txt'], getcompletion('CommentsSave ./a', 'cmdline'), 'a path: files')
+  CommentsClear
+  CommentsLoad
+  call assert_equal([], glob(s:repo . '/.git/fugitive-extras/comments/main/2*', 1, 1), 'no new file')
+  call system('touch -t 202001010000 ' . shellescape(s:repo . '/.git/fugitive-extras/comments/main/wip.txt'))
+  call assert_equal(['work', 'wip'], getcompletion('CommentsLoad w', 'cmdline'))
+  call assert_match("\nReview comments: 1 from .*/work\\.txt$", s:run('CommentsLoad'), 'the newest')
+endfunction
+
+" Another file at a path is kept without !; the comments stay unsaved
+function! s:suite.a_path_is_kept_without_bang() abort
+  edit a.txt
+  1Comment mine
+  let l:file = s:tmp . '/other.txt'
+  call writefile(['theirs'], l:file)
+  call s:only_says(fnamemodify(l:file, ':~') . ' exists (add ! to overwrite)',
+        \ s:run('CommentsSave ' . fnameescape(l:file)))
+  call assert_equal(['theirs'], readfile(l:file))
+  call assert_match('unsaved review comments from main', execute('Git checkout -q -b feature'))
+  silent Git checkout -q main
+  execute 'CommentsSave!' fnameescape(l:file)
+  call assert_equal(['a.txt:1: mine'], readfile(l:file))
+  " Its own file again: no !
+  2Comment more
+  call assert_match('^\nSaved 2 review comments to ', s:run('CommentsSave ' . fnameescape(l:file)))
+endfunction
+
+" A failed write: the comments stay unsaved, and the file isn't theirs
+function! s:suite.save_failing() abort
+  edit a.txt
+  1Comment one
+  call mkdir(s:tmp . '/locked')
+  call setfperm(s:tmp . '/locked', 'r-xr-xr-x')
+  call assert_match('E482: ', s:run('CommentsSave ' . fnameescape(s:tmp . '/locked/x.txt')))
+  call setfperm(s:tmp . '/locked', 'rwxr-xr-x')
+  call assert_equal([{'path': 'a.txt', 'start': 1, 'end': 1, 'body': 'one'}], s:comments())
+  CommentsSave
+  call assert_equal([], glob(s:tmp . '/locked/*', 1, 1), 'not taken for their file')
+  call assert_equal(2, len(s:saves('main')))
+endfunction
+
+function! s:suite.load_a_name_refused() abort
+  edit a.txt
+  call s:only_says('no saved comments nope for main', s:run('CommentsLoad nope'))
 endfunction
 
 function! s:suite.load_refused() abort
