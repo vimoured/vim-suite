@@ -42,14 +42,17 @@ jobs:
             git checkout --quiet --detach FETCH_HEAD
             echo "vim-suite at $BRANCH ($(git rev-parse --short HEAD))"
           fi
+      # Vim with +clipboard, as on a desktop: Ubuntu's vim package has none, so
+      # the dotfiles' "+ mappings can't run; vim-gtk3's works without a display.
       # rg and fd for fzf-utils, which defines its searches only when they're
       # installed. Ubuntu's fd is fdfind: fd is linked to it
       - name: Install Vim, ripgrep and fd
         run: |
           sudo apt-get update
-          sudo apt-get install -y vim ripgrep fd-find
+          sudo apt-get install -y vim-gtk3 ripgrep fd-find
           sudo ln -sf "$(command -v fdfind)" /usr/local/bin/fd
           vim --version | head -n 1
+          vim --version | grep -o '[+-]clipboard'
           rg --version | head -n 1
           fd --version
       # For the dotfiles' Python parts (pdbpp reading ~/.pdbrc.py); bin/fetch
