@@ -49,8 +49,8 @@ jobs:
       # dotfiles' "+ mappings run. Ubuntu has no such package: its vim has no
       # clipboard, and its vim-gtk3 (a GUI build) doesn't fire CmdlineChanged
       # at an input() prompt here, which the specs keeping a prompt's text
-      # need. So built from source once (X11 clipboard; its + register works
-      # without a display) and cached
+      # need. So built from source once (X11 clipboard) and cached; the suite
+      # runs on a virtual display (Xvfb), for a clipboard to be there
       - name: Cache Vim
         id: vim-cache
         uses: actions/cache@v4
@@ -62,7 +62,7 @@ jobs:
       - name: Install Vim's libraries, ripgrep and fd
         run: |
           sudo apt-get update
-          sudo apt-get install -y libncurses-dev libx11-dev libxt-dev ripgrep fd-find
+          sudo apt-get install -y libncurses-dev libx11-dev libxt-dev xvfb ripgrep fd-find
           sudo ln -sf "$(command -v fdfind)" /usr/local/bin/fd
           rg --version | head -n 1
           fd --version
@@ -114,7 +114,7 @@ jobs:
           bin/pin "$NAME" "$SHA"
           echo "$NAME $SHA" >>"$RUNNER_TEMP/pins"
       - name: Run the suite
-        run: bin/test
+        run: xvfb-run -a bin/test
       # The dotfiles in deps/ (at the pull request's commit, for theirs), every
       # plugin they Plug at main, except the ones pinned above
       - name: Smoke test
