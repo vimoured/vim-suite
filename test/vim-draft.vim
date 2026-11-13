@@ -434,7 +434,7 @@ endfunction
 
 function! s:suite.without_vim_place() abort
   call s:draft(['x'])
-  call assert_equal("\nvim-draft: :DraftSave of a draft needs vim-place (with vim-fugitive), which is not installed",
+  call assert_equal("\nvim-draft: :DraftSave of a plugin's draft needs vim-place (with vim-fugitive), which is not installed",
         \ s:without_place('DraftSave'))
   call assert_equal("\nvim-draft: :Drafts needs vim-place (with vim-fugitive), which is not installed",
         \ s:without_place('Drafts'))
