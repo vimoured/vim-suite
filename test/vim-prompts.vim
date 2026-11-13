@@ -397,6 +397,53 @@ function! s:suite.ai_comments_lists_the_oneoffs_comments() abort
   call assert_equal([2, 1], map(getqflist(), 'v:val.lnum'))
 endfunction
 
+""" vim-place's save contract and vim-lists' list of saves, not kept yet:
+""" known failures until vim-prompts keeps them (test/known-failures.txt)
+
+" An Ex command; returns its messages, or the error it raised
+function! s:run(cmd) abort
+  try
+    return execute(a:cmd)
+  catch
+    return v:exception
+  endtry
+endfunction
+
+" Two reviews where the agent's comments are kept, older and newer
+function! s:reviews() abort
+  let l:dir = s:app . '/.git/vim-prompts/comments'
+  call s:write(l:dir . '/older.txt', ['app.py:1: old'])
+  call s:write(l:dir . '/newer.txt', ['app.py:2: new'])
+  call system('touch -t 202001010000 ' . shellescape(l:dir . '/older.txt'))
+  call system('touch -t 202101010000 ' . shellescape(l:dir . '/newer.txt'))
+endfunction
+
+" A review's name is typed and completed without its .txt
+function! s:suite.review_names() abort
+  call s:reviews()
+  call assert_equal(['newer'], getcompletion('AiComments ne', 'cmdline'))
+  call assert_equal(['newer', 'older'], getcompletion('AiCommentsLoad ', 'cmdline'))
+  AiComments older
+  call assert_equal([], s:errors())
+  call assert_equal([1], map(getqflist(), 'v:val.lnum'))
+endfunction
+
+" :AiReviews: the reviews, as vim-lists' list of saves. dd asks first, and
+" the suite's Vim answers confirm() with its default, no
+function! s:suite.reviews() abort
+  call s:reviews()
+  call assert_notmatch('E\d\+:', s:run('AiReviews'))
+  call assert_match('^Agent reviews (2)  ', getline(1))
+  call assert_match('^newer \+2021-01-01 00:00', getline(2))
+  call assert_match('^older \+2020-01-01 00:00', getline(3))
+  call cursor(3, 1)
+  call g:suite.feed('dd')
+  call assert_true(filereadable(s:app . '/.git/vim-prompts/comments/older.txt'), 'kept: not said yes')
+  call cursor(2, 1)
+  call g:suite.feed("\<CR>")
+  call assert_equal([2], map(getqflist(), 'v:val.lnum'), 'loaded as :AiComments newer')
+endfunction
+
 " :AiReply on a comment: the answer comes into the thread's buffer, which
 " isn't modifiable, and goes in the thread's file
 function! s:suite.reply_answers_into_the_thread() abort

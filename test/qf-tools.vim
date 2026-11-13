@@ -1,6 +1,6 @@
 " qf-tools: its keys in quickfix and location-list windows (dd, 3dd, visual
 " d, u) and the User QfToolsChanged event vim-prompts listens to, the toggle,
-" :QfSave / :QfLoad (which work as vim-draft's :DraftSave), and its README,
+" :QfSave / :QfLoad (vim-place's save contract), and its README,
 " through its commands and keys.
 let g:suite_spec = expand('<sfile>')
 execute 'source' fnameescape(expand('<sfile>:p:h') . '/helper/env.vim')

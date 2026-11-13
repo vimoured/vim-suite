@@ -393,6 +393,61 @@ function! s:suite.list() abort
   call assert_equal('DraftList', getloclist(0, {'title': 1}).title)
 endfunction
 
+""" vim-place's save contract and vim-lists' list of saves, not kept yet:
+""" known failures until vim-draft keeps them (test/known-failures.txt)
+
+" A name: the file of that name where vim-place keeps the drafts, saved over
+" without !
+function! s:suite.save_a_name() abort
+  let l:dir = s:tmp . '/repo/.git/vim-draft'
+  execute 'edit' fnameescape(s:tmp . '/repo/file.txt')
+  call s:draft(['kept'])
+  call assert_equal("\nDraftSave: wrote " . fnamemodify(l:dir . '/notes.txt', ':~'), s:run('DraftSave notes'))
+  call assert_equal(['kept'], readfile(l:dir . '/notes.txt'))
+  call assert_false(filereadable(s:tmp . '/plain/notes'), 'not a file in the current directory')
+  quit!
+  call s:draft(['again'])
+  DraftSave notes
+  call assert_equal(['again'], readfile(l:dir . '/notes.txt'))
+  call assert_equal(['notes'], getcompletion('DraftSave no', 'cmdline'))
+  call assert_equal(['./sub/'], getcompletion('DraftSave ./s', 'cmdline'), 'a path: files')
+  call assert_equal("\nvim-draft: :DraftSave of a name needs vim-place (with vim-fugitive), which is not installed",
+        \ s:without_place('DraftSave notes'))
+endfunction
+
+" :Drafts: the saves, as vim-lists' list of saves. dd asks first, and the
+" suite's Vim answers confirm() with its default, no
+function! s:suite.drafts() abort
+  call mkdir(s:scratches, 'p')
+  call writefile(['older'], s:scratches . '/a.txt')
+  call writefile(['newer'], s:scratches . '/b.md')
+  call system('touch -t 202001010000 ' . shellescape(s:scratches . '/a.txt'))
+  call system('touch -t 202101010000 ' . shellescape(s:scratches . '/b.md'))
+  " From a draft: the drafts of the buffer it was opened from, and scratches
+  execute 'edit' fnameescape(s:tmp . '/repo/file.txt')
+  call s:draft(['in the repo'])
+  DraftSave
+  call assert_notmatch('E\d\+:', s:run('Drafts'))
+  call assert_match('^Drafts (3)  ', getline(1))
+  call assert_match('^\d\{8}-\d\{6} \+\d\{4}-\d\d-\d\d \d\d:\d\d', getline(2))
+  call assert_match('^b \+2021-01-01 00:00', getline(3))
+  call assert_match('^a \+2020-01-01 00:00', getline(4))
+  call assert_equal(4, line('$'))
+  call cursor(4, 1)
+  call g:suite.feed('dd')
+  call assert_true(filereadable(s:scratches . '/a.txt'), 'kept: not said yes')
+  call cursor(3, 1)
+  call g:suite.feed("\<CR>")
+  call assert_equal(s:scratches . '/b.md', expand('%:p'), 'opened where the list was opened from')
+  " Nothing saved: a row saying how to save
+  call delete(s:tmp . '/repo/.git/vim-draft', 'rf')
+  call delete(s:scratches, 'rf')
+  enew!
+  Drafts
+  call assert_equal(2, line('$'))
+  call assert_match(':DraftSave', getline(2))
+endfunction
+
 function! s:suite.without_vim_place() abort
   call s:draft(['x'])
   call assert_equal("\nvim-draft: :DraftSave of a draft needs vim-place (with vim-fugitive), which is not installed",
