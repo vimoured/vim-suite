@@ -397,6 +397,31 @@ function! s:suite.ai_comments_lists_the_oneoffs_comments() abort
   call assert_equal([2, 1], map(getqflist(), 'v:val.lnum'))
 endfunction
 
+" :AiReply on a comment: the answer comes into the thread's buffer, which
+" isn't modifiable, and goes in the thread's file
+function! s:suite.reply_answers_into_the_thread() abort
+  call s:answered_review()
+  AiComments
+  let g:prompts_agent_table.replies = {'cmd': ['sh', '-c', 'printf ''because\n''', 'sh'],
+        \ 'oneoff': [], 'prompt': [], 'modes': {'ask': []}}
+  let g:prompts_agent = 'replies'
+  messages clear
+  AiReply why minus?
+  let l:bufnr = bufnr('ai-thread://*')
+  call assert_true(l:bufnr > 0, 'the thread is shown')
+  for l:i in range(100)
+    if !getbufvar(l:bufnr, 'prompts_answering', 1)
+      break
+    endif
+    sleep 20m
+  endfor
+  call assert_equal(0, getbufvar(l:bufnr, 'prompts_answering', 1), 'the agent answered')
+  call assert_equal([], filter(split(execute('messages'), "\n"), 'v:val =~# "^E\\d\\+:"'))
+  let l:thread = getbufvar(l:bufnr, 'prompts_thread').thread
+  call assert_equal(['## agent', '', 'because'], readfile(l:thread)[-3:])
+  call assert_equal(['## agent', '', 'because'], getbufline(l:bufnr, 1, '$')[-3:])
+endfunction
+
 " Rules for the task: +name
 
 function! s:suite.plus_sends_a_task_rule() abort
