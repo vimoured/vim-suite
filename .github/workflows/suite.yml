@@ -25,6 +25,9 @@ permissions:
 jobs:
   suite:
     runs-on: ubuntu-latest
+    env:
+      # The Vim the suite runs on, built below
+      VIM_TAG: v9.2.0000
     steps:
       # When called, github.* describes the plugin's pull request, so name
       # this repository explicitly
@@ -42,19 +45,40 @@ jobs:
             git checkout --quiet --detach FETCH_HEAD
             echo "vim-suite at $BRANCH ($(git rev-parse --short HEAD))"
           fi
-      # Vim with +clipboard, as on a desktop: Ubuntu's vim package has none, so
-      # the dotfiles' "+ mappings can't run; vim-gtk3's works without a display.
+      # Vim with +clipboard and no GUI, as on a desktop terminal, so the
+      # dotfiles' "+ mappings run. Ubuntu has no such package: its vim has no
+      # clipboard, and its vim-gtk3 (a GUI build) doesn't fire CmdlineChanged
+      # at an input() prompt here, which the specs keeping a prompt's text
+      # need. So built from source once (X11 clipboard; its + register works
+      # without a display) and cached
+      - name: Cache Vim
+        id: vim-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/vim
+          key: vim-${{ env.VIM_TAG }}-x11-nogui-${{ runner.os }}-${{ runner.arch }}
       # rg and fd for fzf-utils, which defines its searches only when they're
       # installed. Ubuntu's fd is fdfind: fd is linked to it
-      - name: Install Vim, ripgrep and fd
+      - name: Install Vim's libraries, ripgrep and fd
         run: |
           sudo apt-get update
-          sudo apt-get install -y vim-gtk3 ripgrep fd-find
+          sudo apt-get install -y libncurses-dev libx11-dev libxt-dev ripgrep fd-find
           sudo ln -sf "$(command -v fdfind)" /usr/local/bin/fd
-          vim --version | head -n 1
-          vim --version | grep -o '[+-]clipboard'
           rg --version | head -n 1
           fd --version
+      - name: Build Vim
+        if: steps.vim-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --quiet --depth 1 --branch "$VIM_TAG" https://github.com/vim/vim "$RUNNER_TEMP/vim-src"
+          cd "$RUNNER_TEMP/vim-src"
+          ./configure --quiet --prefix="$HOME/vim" --with-features=huge --enable-gui=no --with-x
+          make -j"$(nproc)" >/dev/null
+          make install >/dev/null
+      - name: Use the built Vim
+        run: |
+          echo "$HOME/vim/bin" >>"$GITHUB_PATH"
+          "$HOME/vim/bin/vim" --version | head -n 1
+          "$HOME/vim/bin/vim" --version | grep -q '+clipboard' && echo +clipboard
       # For the dotfiles' Python parts (pdbpp reading ~/.pdbrc.py); bin/fetch
       # makes deps/python from it with test/requirements.txt
       - uses: actions/setup-python@v6
