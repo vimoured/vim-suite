@@ -525,6 +525,41 @@ function! s:suite.draft_asks_from_where_it_is_sent() abort
   call assert_true(bufnr('ai-oneoff://*') > 0, 'the one-off went')
 endfunction
 
+" Closed onto a :Git status that is out of date, the draft's window is still
+" closing while fugitive reloads the status and sleeps waiting for git: the
+" agent opens once Vim is done, not in that sleep (E242)
+function! s:suite.draft_bang_closed_onto_a_stale_status_opens_the_agent() abort
+  Git
+  wincmd p
+  write
+  noautocmd wincmd p
+  only
+  call assert_equal('index', get(b:, 'fugitive_type', ''))
+  let l:tabs = tabpagenr('$')
+  AiDraft! what is this
+  messages clear
+  wq
+  for l:i in range(50)
+    if tabpagenr('$') > l:tabs
+      break
+    endif
+    sleep 20m
+  endfor
+  let l:messages = execute('messages')
+  call assert_notmatch('E\d\+:', l:messages)
+  call assert_equal(l:tabs + 1, tabpagenr('$'), 'the agent opened')
+  " The agent (`true`) exits at once: vim-dispatch removes its terminal then,
+  " which must happen before the next test wipes it
+  let l:term = bufnr()
+  for l:i in range(100)
+    if !buflisted(l:term)
+      break
+    endif
+    sleep 20m
+  endfor
+  silent! tabonly!
+endfunction
+
 " Completion of :Ai, and the dotfiles' <c-x><c-a> in a draft
 
 function! s:suite.ai_completes_personas_variants_rules_and_flags() abort
