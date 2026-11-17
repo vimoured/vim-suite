@@ -556,7 +556,9 @@ function! s:suite.draft_bang_closed_onto_a_stale_status_opens_the_agent() abort
   let l:opened = s:wait_until({-> tabpagenr('$') > l:tabs}, 10000)
   let l:messages = execute('messages')
   call assert_notmatch('E\d\+:', l:messages)
-  call assert_true(l:opened, 'the agent opened (state: ' . string(state()) . ')')
+  call assert_true(l:opened, 'the agent opened (state: ' . string(state())
+        \ . ', timers: ' . string(map(timer_info(), 'get(v:val.callback, "name", string(v:val.callback))'))
+        \ . ', messages: ' . string(l:messages) . ')')
   call assert_equal(l:tabs + 1, tabpagenr('$'))
   " The agent (`true`) exits at once: vim-dispatch removes its terminal then,
   " which must happen before the next test wipes it
