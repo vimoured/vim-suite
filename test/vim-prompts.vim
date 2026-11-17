@@ -74,6 +74,20 @@ function! s:errors() abort
   return map(l:errors, 'v:val[13:]')
 endfunction
 
+" Waits until {cond} (a funcref) is true, up to {timeout} ms, letting timers
+" and jobs run: whether it became true. For what goes through a timer that
+" waits on Vim, how long depends on the machine (slower on CI)
+function! s:wait_until(cond, timeout) abort
+  let l:start = reltime()
+  while !a:cond()
+    if reltimefloat(reltime(l:start)) * 1000 > a:timeout
+      return 0
+    endif
+    sleep 20m
+  endwhile
+  return 1
+endfunction
+
 " [range]AiPreview[!] {args}: the prompt it shows, the command line it would
 " run, and the errors, as {prompt, line, errors}
 function! s:preview(args, ...) abort
@@ -539,24 +553,15 @@ function! s:suite.draft_bang_closed_onto_a_stale_status_opens_the_agent() abort
   AiDraft! what is this
   messages clear
   wq
-  for l:i in range(50)
-    if tabpagenr('$') > l:tabs
-      break
-    endif
-    sleep 20m
-  endfor
+  let l:opened = s:wait_until({-> tabpagenr('$') > l:tabs}, 10000)
   let l:messages = execute('messages')
   call assert_notmatch('E\d\+:', l:messages)
-  call assert_equal(l:tabs + 1, tabpagenr('$'), 'the agent opened')
+  call assert_true(l:opened, 'the agent opened (state: ' . string(state()) . ')')
+  call assert_equal(l:tabs + 1, tabpagenr('$'))
   " The agent (`true`) exits at once: vim-dispatch removes its terminal then,
   " which must happen before the next test wipes it
   let l:term = bufnr()
-  for l:i in range(100)
-    if !buflisted(l:term)
-      break
-    endif
-    sleep 20m
-  endfor
+  call s:wait_until({-> !buflisted(l:term)}, 10000)
   silent! tabonly!
 endfunction
 
