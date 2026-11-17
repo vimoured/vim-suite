@@ -541,7 +541,9 @@ endfunction
 
 " Closed onto a :Git status that is out of date, the draft's window is still
 " closing while fugitive reloads the status and sleeps waiting for git: the
-" agent opens once Vim is done, not in that sleep (E242)
+" agent opens once Vim is done, not in that sleep (E242). It opens from a
+" timer, and the agent (`true`) exits at once: its tab can open and close
+" within one :sleep, so what's waited for is its terminal having opened
 function! s:suite.draft_bang_closed_onto_a_stale_status_opens_the_agent() abort
   Git
   wincmd p
@@ -549,24 +551,24 @@ function! s:suite.draft_bang_closed_onto_a_stale_status_opens_the_agent() abort
   noautocmd wincmd p
   only
   call assert_equal('index', get(b:, 'fugitive_type', ''))
+  let s:terms = []
+  augroup vim_suite_agent
+    autocmd!
+    autocmd TerminalOpen * call add(s:terms, [str2nr(expand('<abuf>')), tabpagenr('$')])
+  augroup END
   let l:tabs = tabpagenr('$')
   AiDraft! what is this
-  let l:before = [bufname(), winnr('$'), execute('messages')]
   messages clear
   wq
-  let l:opened = s:wait_until({-> tabpagenr('$') > l:tabs}, 10000)
-  let l:messages = execute('messages')
-  call assert_notmatch('E\d\+:', l:messages)
-  call assert_true(l:opened, 'the agent opened (state: ' . string(state())
-        \ . ', timers: ' . string(map(timer_info(), 'get(v:val.callback, "name", string(v:val.callback))'))
-        \ . ', messages: ' . string(l:messages)
-        \ . ', before wq: ' . string(l:before)
-        \ . ', buffer: ' . string(bufname()) . ', windows: ' . winnr('$')
-        \ . ', ls: ' . string(execute('ls!')) . ')')
-  call assert_equal(l:tabs + 1, tabpagenr('$'))
-  " The agent (`true`) exits at once: vim-dispatch removes its terminal then,
-  " which must happen before the next test wipes it
-  let l:term = bufnr()
+  call assert_true(s:wait_until({-> !empty(s:terms)}, 10000), 'the agent opened')
+  augroup vim_suite_agent
+    autocmd!
+  augroup END
+  call assert_notmatch('E\d\+:', execute('messages'))
+  call assert_equal(l:tabs + 1, get(get(s:terms, 0, []), 1), 'in a tab of its own')
+  " vim-dispatch removes the agent's terminal once it exits, which must happen
+  " before the next test wipes it
+  let l:term = get(get(s:terms, 0, []), 0)
   call s:wait_until({-> !buflisted(l:term)}, 10000)
   silent! tabonly!
 endfunction
