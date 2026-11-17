@@ -551,6 +551,7 @@ function! s:suite.draft_bang_closed_onto_a_stale_status_opens_the_agent() abort
   call assert_equal('index', get(b:, 'fugitive_type', ''))
   let l:tabs = tabpagenr('$')
   AiDraft! what is this
+  let l:before = [bufname(), winnr('$'), execute('messages')]
   messages clear
   wq
   let l:opened = s:wait_until({-> tabpagenr('$') > l:tabs}, 10000)
@@ -558,7 +559,10 @@ function! s:suite.draft_bang_closed_onto_a_stale_status_opens_the_agent() abort
   call assert_notmatch('E\d\+:', l:messages)
   call assert_true(l:opened, 'the agent opened (state: ' . string(state())
         \ . ', timers: ' . string(map(timer_info(), 'get(v:val.callback, "name", string(v:val.callback))'))
-        \ . ', messages: ' . string(l:messages) . ')')
+        \ . ', messages: ' . string(l:messages)
+        \ . ', before wq: ' . string(l:before)
+        \ . ', buffer: ' . string(bufname()) . ', windows: ' . winnr('$')
+        \ . ', ls: ' . string(execute('ls!')) . ')')
   call assert_equal(l:tabs + 1, tabpagenr('$'))
   " The agent (`true`) exits at once: vim-dispatch removes its terminal then,
   " which must happen before the next test wipes it
