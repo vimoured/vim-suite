@@ -16,6 +16,8 @@ call writefile(['#!/bin/sh'], s:tmp . '/bin/copilot')
 call setfperm(s:tmp . '/bin/copilot', 'rwxr-xr-x')
 let $PATH = s:tmp . '/bin:' . $PATH
 let g:prompts_agent = 'copilot'
+" As the dotfiles set it, before a test unsets it
+let s:dotfiles_approval = get(g:, 'prompts_copilot_approval', '')
 
 function! s:suite.before_each() abort
   unlet! g:prompts_copilot_approval
@@ -57,4 +59,22 @@ endfunction
 " Its own config decides; the dotfiles' auto mode has no flag
 function! s:suite.session_starts_as_its_config_says() abort
   call assert_match('would run: copilot -i <prompt>%=', s:line('!'))
+endfunction
+
+" The dotfiles approve everything in a one-off: the judge refused too much.
+" A project's .vim.custom can set it back
+function! s:suite.dotfiles_oneoff_approves_everything() abort
+  let g:prompts_copilot_approval = s:dotfiles_approval
+  call assert_match('would run: copilot --allow-all -p <prompt>%=', s:line(''))
+endfunction
+
+" Approving everything is said once a Vim session, on the first one-off that
+" does: every one-off would say it again
+function! s:suite.oneoff_with_all_warns_once() abort
+  let g:prompts_copilot_approval = 'all'
+  Ai -- hi
+  Ai -- again
+  call assert_equal(['vim-prompts: copilot one-offs run with --allow-all: every tool, path and URL,'
+        \ . ' with no judge (g:prompts_copilot_approval)'],
+        \ filter(split(execute('messages'), "\n"), 'v:val =~# "allow-all"'))
 endfunction
