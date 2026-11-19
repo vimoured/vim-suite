@@ -140,7 +140,20 @@ function! s:suite.python_from_a_subdirectory() abort
         \ 'src/sub/deep/x.py': [],
         \ })
   call s:answers({'active': 'python', 'name': 'sub', 'root': l:root, 'sources': ['src/sub/']},
-        \ s:started_in(l:root . '/src/sub/deep'))
+        \ s:started_in(l:root . '/src'))
+endfunction
+
+" Looked for in the directory Vim starts in and its parent, no further up
+function! s:suite.no_further_up_than_the_parent() abort
+  let l:root = s:project('too-far', {
+        \ 'pyproject.toml': ['[project]', 'name = "far"'],
+        \ 'go.mod': ['module example.com/far'],
+        \ 'Cargo.toml': ['[package]', 'name = "far"'],
+        \ 'autoload/far.vim': [],
+        \ 'a/b/': [],
+        \ })
+  call s:answers({'active': '', 'name': '', 'root': '', 'languages': []},
+        \ s:started_in(l:root . '/a/b'))
 endfunction
 
 " No name declared: the only package's, in src/ or the root (tests aren't one)
@@ -395,6 +408,7 @@ function! s:suite.installed_package() abort
           \ '.venv/pyvenv.cfg': [],
           \ '.venv/' . l:site . '/celery/__init__.py': [],
           \ '.venv/' . l:site . '/celery/app/base.py': [],
+          \ '.venv/' . l:site . '/celery/app/utils/x.py': [],
           \ '.venv/' . l:site . '/celery-5.6.3.dist-info/METADATA': [],
           \ })
     let l:root = l:venv . '/.venv/' . l:site . '/celery'
@@ -403,9 +417,11 @@ function! s:suite.installed_package() abort
             \ 'root': l:root, 'sources': [], 'tests': s:python_tests},
             \ s:started_in(l:dir))
     endfor
-    " site-packages itself is no package
-    call s:answers({'active': '', 'name': '', 'root': ''},
-          \ s:started_in(fnamemodify(l:root, ':h')))
+    " site-packages itself is no package, and the package is no further up
+    " than the parent
+    for l:dir in [fnamemodify(l:root, ':h'), l:root . '/app/utils']
+      call s:answers({'active': '', 'name': '', 'root': ''}, s:started_in(l:dir))
+    endfor
   endfor
 endfunction
 
@@ -472,12 +488,12 @@ endfunction
 function! s:suite.go_from_a_subdirectory() abort
   let l:root = s:project('go mod', {
         \ 'go.mod': ['// comment', 'module github.com/u/app/v2', '', 'go 1.22'],
-        \ 'cmd/app/main.go': [],
+        \ 'cmd/main.go': [],
         \ })
   call s:answers({'active': 'go', 'name': 'app', 'language': 'go', 'root': l:root,
         \ 'sources': [], 'tests': ['*_test.go'],
         \ 'test': 1, 'code': 0},
-        \ s:started_in(l:root . '/cmd/app', {'ask': {
+        \ s:started_in(l:root . '/cmd', {'ask': {
         \   'test': 'project_detect#is_test("main_test.go")',
         \   'code': 'project_detect#is_test("main.go")'}}))
 endfunction
