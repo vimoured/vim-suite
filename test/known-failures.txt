@@ -13,13 +13,3 @@ glow-preview live_preview_in_a_tmux_pane_rerenders_on_save
 # project-detect looks once, from the directory Vim started in: after :cd into
 # a project it's still not detected, so <leader>rp has no scope
 fzf-utils-cd-into-project grep_code_after_cd_into_the_project
-
-
-# vim-prompts: a one-off shows nothing while the agent answers (claude -p
-# prints only at the end, and airline hides its statusline), and nothing says
-# when it is done, so a one-off whose window was closed answers unseen
-vim-prompts oneoff_says_in_its_buffer_that_it_is_answering
-vim-prompts oneoff_counts_the_seconds_it_has_been_answering
-vim-prompts oneoff_says_in_its_buffer_how_long_it_took
-vim-prompts oneoff_says_it_is_done_with_its_window_closed
-vim-prompts oneoff_says_it_failed
