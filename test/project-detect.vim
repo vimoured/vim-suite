@@ -385,6 +385,30 @@ function! s:suite.python_root_is_the_strongest_file() abort
         \ s:started_in(l:root . '/docs'))
 endfunction
 
+" An installed package has no project file: it's its folder in site-packages,
+" not the project the venv is in
+function! s:suite.installed_package() abort
+  for l:site in ['lib/python3.12/site-packages', 'lib/python3/dist-packages']
+    let l:venv = s:project('venv-' . fnamemodify(l:site, ':t'), {
+          \ 'pyproject.toml': ['[project]', 'name = "app"'],
+          \ 'app/__init__.py': [],
+          \ '.venv/pyvenv.cfg': [],
+          \ '.venv/' . l:site . '/celery/__init__.py': [],
+          \ '.venv/' . l:site . '/celery/app/base.py': [],
+          \ '.venv/' . l:site . '/celery-5.6.3.dist-info/METADATA': [],
+          \ })
+    let l:root = l:venv . '/.venv/' . l:site . '/celery'
+    for l:dir in [l:root, l:root . '/app']
+      call s:answers({'active': 'python', 'name': 'celery', 'language': 'python',
+            \ 'root': l:root, 'sources': [], 'tests': s:python_tests},
+            \ s:started_in(l:dir))
+    endfor
+    " site-packages itself is no package
+    call s:answers({'active': '', 'name': '', 'root': ''},
+          \ s:started_in(fnamemodify(l:root, ':h')))
+  endfor
+endfunction
+
 " A given name skips looking for the declared one, even with a folder of its own
 function! s:suite.project_name_skips_the_declared_name() abort
   let l:root = s:project('py-both', {'pyproject.toml': ['[project]', 'name = "declared"'],
