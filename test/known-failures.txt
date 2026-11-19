@@ -14,3 +14,10 @@ glow-preview live_preview_in_a_tmux_pane_rerenders_on_save
 # a project it's still not detected, so <leader>rp has no scope
 fzf-utils-cd-into-project grep_code_after_cd_into_the_project
 
+# dotfiles: Copilot's assisted judge refuses too much in a one-off; the
+# dotfiles are to set g:prompts_copilot_approval = 'all'
+vim-prompts-copilot dotfiles_oneoff_approves_everything
+
+# vim-prompts: a Copilot one-off with --allow-all doesn't say it approves
+# everything
+vim-prompts-copilot oneoff_with_all_warns_once
