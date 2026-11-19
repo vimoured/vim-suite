@@ -411,6 +411,67 @@ function! s:suite.ai_comments_lists_the_oneoffs_comments() abort
   call assert_equal([2, 1], map(getqflist(), 'v:val.lnum'))
 endfunction
 
+" A one-off shows it is under way and says when it is done. The agent prints
+" nothing until it is done, as `claude -p` does, which can take minutes, and
+" the dotfiles' airline hides the one-off's statusline: what shows is the
+" buffer's text and the messages
+
+" :Ai with an agent that prints its answer after {seconds} and exits with
+" {status}; the one-off's buffer
+function! s:slow_oneoff(seconds, status) abort
+  let g:prompts_agent_table.slow = {'cmd': ['sh', '-c', 'sleep ' . a:seconds
+        \ . '; printf ''the answer\n''; exit ' . a:status, 'sh'],
+        \ 'oneoff': [], 'prompt': [], 'modes': {'auto': []}}
+  let g:prompts_agent = 'slow'
+  messages clear
+  Ai -- what is this
+  return bufnr('ai-oneoff://*')
+endfunction
+
+function! s:oneoff_done(bufnr) abort
+  return s:wait_until({-> getbufvar(a:bufnr, 'prompts_oneoff') !~# 'answering'}, 10000)
+endfunction
+
+function! s:suite.oneoff_says_in_its_buffer_that_it_is_answering() abort
+  let l:bufnr = s:slow_oneoff(2, 0)
+  call assert_match('^slow is answering', get(getbufline(l:bufnr, 1), 0, ''))
+  call s:oneoff_done(l:bufnr)
+endfunction
+
+" A line that stays the same for minutes looks stalled
+function! s:suite.oneoff_counts_the_seconds_it_has_been_answering() abort
+  let l:bufnr = s:slow_oneoff(3, 0)
+  let l:first = get(getbufline(l:bufnr, 1), 0, '')
+  call assert_true(s:wait_until({-> get(getbufline(l:bufnr, 1), 0, '') !=# l:first}, 2500),
+        \ 'the line changed: ' . l:first)
+  call assert_match('^slow is answering.* [12]s$', get(getbufline(l:bufnr, 1), 0, ''))
+  call s:oneoff_done(l:bufnr)
+endfunction
+
+function! s:suite.oneoff_says_in_its_buffer_how_long_it_took() abort
+  let l:bufnr = s:slow_oneoff(1, 0)
+  call assert_true(s:oneoff_done(l:bufnr), 'done')
+  call assert_match('^slow answered in [12]s$', get(getbufline(l:bufnr, 1), 0, ''))
+  call assert_equal(['the answer'], filter(getbufline(l:bufnr, 2, '$'), '!empty(v:val)'))
+endfunction
+
+" Its window closed while it answers (or in another tab), the answer is in a
+" hidden buffer: the message says where
+function! s:suite.oneoff_says_it_is_done_with_its_window_closed() abort
+  let l:bufnr = s:slow_oneoff(1, 0)
+  execute bufwinnr(l:bufnr) . 'close'
+  call assert_true(s:oneoff_done(l:bufnr), 'done')
+  call assert_equal(['slow answered in 1s: :buffer ' . bufname(l:bufnr)],
+        \ map(s:errors(), 'substitute(v:val, " [12]s:", " 1s:", "")'))
+endfunction
+
+function! s:suite.oneoff_says_it_failed() abort
+  let l:bufnr = s:slow_oneoff(1, 3)
+  call assert_true(s:oneoff_done(l:bufnr), 'done')
+  call assert_match('^slow failed (3) after [12]s$', get(getbufline(l:bufnr, 1), 0, ''))
+  call assert_equal(['slow failed (3): :buffer ' . bufname(l:bufnr)], s:errors())
+endfunction
+
 """ Reviews by name and :AiReviews: vim-place's save contract and vim-lists'
 """ list of saves
 
