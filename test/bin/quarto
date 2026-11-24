@@ -1,0 +1,16 @@
+#!/bin/sh
+# Stand-in for quarto, for quarto-slides: `quarto preview <file>` says what
+# it serves and runs until killed, as the real one does; `quarto render
+# <file>` writes <file>.html next to it. Every call is appended to
+# $QUARTO_LOG.
+echo "quarto $*" >>"${QUARTO_LOG:-/dev/null}"
+case "$1" in
+  preview)
+    echo "Preview of $2"
+    exec sleep 600 ;;
+  render)
+    html="${2%.qmd}.html"
+    echo '<html>slides</html>' >"$html"
+    echo "Output created: $(basename "$html")" ;;
+  *) echo "fake quarto: no answer for: $*" >&2; exit 1 ;;
+esac

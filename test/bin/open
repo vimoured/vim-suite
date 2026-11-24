@@ -1,0 +1,4 @@
+#!/bin/sh
+# Stand-in for open (macOS) and xdg-open (Linux), so no browser starts:
+# appends what it was asked to open to $OPEN_LOG.
+echo "$*" >>"${OPEN_LOG:-/dev/null}"
