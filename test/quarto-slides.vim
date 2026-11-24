@@ -45,7 +45,7 @@ function! s:suite.after() abort
 endfunction
 
 if !executable('tmux')
-  " CI has no tmux: every test is a TODO there; they run where it's installed
+  " Without tmux every test is a TODO (GitHub's Ubuntu runners have it)
   function! s:suite.before_each() abort
     call themis#helper('assert').skip('TODO: needs tmux installed')
   endfunction
