@@ -47,6 +47,22 @@ function! s:suite.join_clipboard_lines() abort
   call assert_equal('uv run pytest tests/test_order.py::TestOrder -q', getreg('+'))
 endfunction
 
+" A deck opens where its slides start, past the front matter
+function! s:suite.new_deck_opens_on_its_first_slide() abort
+  call writefile([
+        \ '---',
+        \ 'title: "Lorem"',
+        \ 'format: revealjs',
+        \ '---',
+        \ '',
+        \ '## Ipsum',
+        \ '',
+        \ 'Dolor sit amet',
+        \ ], 'slides.qmd')
+  edit slides.qmd
+  call assert_equal([6, 1], [line('.'), col('.')])
+endfunction
+
 " pdb's vdiff (.pdbrc.py), in a Vim :terminal, asks Vim through the terminal
 " API (Tapi_PdbDiff, vim-rc/plugin/pdb_diff.vim) to diff the two values,
 " normalized to sorted, indented JSON, expected left and actual right, in one
