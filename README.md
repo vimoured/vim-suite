@@ -41,7 +41,7 @@ updates it to that branch's latest commit. `deps/` is not committed.
 | `test/helper/env.vim`   | loads the dotfiles' `vim-rc/` and every plugin in a private `HOME`     |
 | `test/helper/startup.vim` | starts Themis after Vim's startup, so `'autoread'` reloads happen    |
 | `test/helper/autoload/` | a no-op vim-plug, and an `fzf#run` that records its spec in `g:suite.fzf` |
-| `test/bin/`             | `fzf` and `gh` stand-ins                                               |
+| `test/bin/`             | `fzf`, `gh` and `quarto` stand-ins                                     |
 | `test/stub/`            | the colorscheme the dotfiles name                                      |
 
 ## Writing specs
