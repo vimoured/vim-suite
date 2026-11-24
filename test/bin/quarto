@@ -2,10 +2,14 @@
 # Stand-in for quarto, for quarto-slides: `quarto preview <file>` says what
 # it serves and runs until killed, as the real one does; `quarto render
 # <file>` writes <file>.html next to it. Every call is appended to
-# $QUARTO_LOG.
+# $QUARTO_LOG. With $QUARTO_FAIL set, preview fails at once, as on a bad deck.
 echo "quarto $*" >>"${QUARTO_LOG:-/dev/null}"
 case "$1" in
   preview)
+    if [ -n "${QUARTO_FAIL:-}" ]; then
+      echo "ERROR: $QUARTO_FAIL" >&2
+      exit 1
+    fi
     echo "Preview of $2"
     exec sleep 600 ;;
   render)
