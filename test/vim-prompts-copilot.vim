@@ -40,40 +40,40 @@ endfunction
 
 function! s:suite.oneoff_approves_with_the_judge_by_default() abort
   call assert_match('would run: copilot --experimental --assisted-approval --allow-all-tools'
-        \ . ' --allow-all-urls --allow-all-paths -p <prompt>%=', s:line(''))
+        \ . ' --allow-all-urls --allow-all-paths -p <prompt>%=', s:line('!'))
 endfunction
 
 function! s:suite.oneoff_approves_everything_with_all() abort
   let g:prompts_copilot_approval = 'all'
-  call assert_match('would run: copilot --allow-all -p <prompt>%=', s:line(''))
+  call assert_match('would run: copilot --allow-all -p <prompt>%=', s:line('!'))
 endfunction
 
 function! s:suite.unknown_approval_is_an_error_and_the_judge_approves() abort
   let g:prompts_copilot_approval = 'yolo'
   call assert_match('would run: copilot --experimental --assisted-approval --allow-all-tools'
-        \ . ' --allow-all-urls --allow-all-paths -p <prompt>%=', s:line(''))
+        \ . ' --allow-all-urls --allow-all-paths -p <prompt>%=', s:line('!'))
   call assert_match('vim-prompts: g:prompts_copilot_approval is assisted or all, not yolo',
         \ execute('messages'))
 endfunction
 
 " Its own config decides; the dotfiles' auto mode has no flag
 function! s:suite.session_starts_as_its_config_says() abort
-  call assert_match('would run: copilot -i <prompt>%=', s:line('!'))
+  call assert_match('would run: copilot -i <prompt>%=', s:line(''))
 endfunction
 
 " The dotfiles approve everything in a one-off: the judge refused too much.
 " A project's .vim.custom can set it back
 function! s:suite.dotfiles_oneoff_approves_everything() abort
   let g:prompts_copilot_approval = s:dotfiles_approval
-  call assert_match('would run: copilot --allow-all -p <prompt>%=', s:line(''))
+  call assert_match('would run: copilot --allow-all -p <prompt>%=', s:line('!'))
 endfunction
 
 " Approving everything is said once a Vim session, on the first one-off that
 " does: every one-off would say it again
 function! s:suite.oneoff_with_all_warns_once() abort
   let g:prompts_copilot_approval = 'all'
-  Ai -- hi
-  Ai -- again
+  Ai! -- hi
+  Ai! -- again
   call assert_equal(['vim-prompts: copilot one-offs run with --allow-all: every tool, path and URL,'
         \ . ' with no judge (g:prompts_copilot_approval)'],
         \ filter(split(execute('messages'), "\n"), 'v:val =~# "allow-all"'))
