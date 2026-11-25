@@ -311,7 +311,7 @@ function! s:suite.oneoff_without_a_question_points_at_a_session() abort
 endfunction
 
 function! s:suite.ai_bang_alone_is_an_error() abort
-  for l:args in ['', ' --plan-mode']
+  for l:args in ['', ' =plan', ' --plan-mode']
     let l:tabs = tabpagenr('$')
     execute 'Ai!' . l:args
     call assert_equal([':Ai! asks once and needs something to ask; :Ai opens a session'], s:errors())
@@ -363,7 +363,15 @@ function! s:suite.oneoff_runs_in_the_mode_asked_for() abort
   let g:prompts_agent_table.modal = {'cmd': ['true'], 'prompt': ['-i'],
         \ 'modes': {'ask': ['--ask'], 'auto': ['--auto']}, 'oneoff_modes': {'auto': ['--yes']}}
   let g:prompts_agent = 'modal'
+  call assert_match('true --ask -p <prompt>', s:preview('=ask -- hi', '', '!').line)
   call assert_match('true --ask -p <prompt>', s:preview('--ask-mode -- hi', '', '!').line)
+endfunction
+
+" =mode is refused for a word that isn't a mode, so a typo isn't sent as text
+function! s:suite.unknown_mode_refuses() abort
+  call assert_equal(['=plna: the modes are =agent, =ask, =auto, =plan; text after -- is taken as is'],
+        \ s:preview('=plna what is this').errors)
+  call assert_equal([], s:preview('-- a =b').errors)
 endfunction
 
 " A one-off that answers: its comments are saved for :AiComments
@@ -642,6 +650,8 @@ function! s:suite.ai_completes_personas_variants_rules_and_flags() abort
         \ ['Ai /rev', ['/review', '/review:']],
         \ ['Ai /review:', ['/review:pr']],
         \ ['Ai --f', ['--force']],
+        \ ['Ai =', ['=agent', '=ask', '=auto', '=plan']],
+        \ ['Ai /review =p', ['=plan']],
         \ ['Ai +te', ['+test-setup', '+testing']],
         \ ['Ai #changes:s', ['#changes:staged']],
         \ ['Ai #changes:u', ['#changes:unstaged']],
