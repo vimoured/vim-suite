@@ -13,15 +13,3 @@ glow-preview live_preview_in_a_tmux_pane_rerenders_on_save
 # project-detect looks once, from the directory Vim started in: after :cd into
 # a project it's still not detected, so <leader>rp has no scope
 fzf-utils-cd-into-project grep_code_after_cd_into_the_project
-
-# fzf.vim's key footer is cut off beside a preview, where gll's legend is
-# packed to the list's width by fzf-legend: fzf.vim's pickers (and fzf-utils'
-# on top of them) keep the footer, and their legends don't refit on the
-# preview's toggle key. :Grep's legend binds start, replacing the reload that
-# runs its first search
-fzf-utils legend_of_git_status_files
-fzf-utils legend_of_files
-fzf-utils legend_of_buffers
-fzf-utils legend_of_grep
-fzf-utils legend_of_rg
-fzf-utils legend_of_commits

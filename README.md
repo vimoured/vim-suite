@@ -38,7 +38,7 @@ updates it to that branch's latest commit. `deps/` is not committed.
 | `test/<plugin>.vim`     | the spec of one frozen plugin                                          |
 | `test/dotfiles.vim`     | the config loads without an error                                      |
 | `test/known-failures.txt` | tests failing because of a known, not yet fixed bug                  |
-| `test/helper/env.vim`   | loads the dotfiles' `vim-rc/` and every plugin in a private `HOME`     |
+| `test/helper/env.vim`   | loads the dotfiles' `vim-rc/` and every plugin in a private `HOME`, with the dotfiles' `shell/bin` (`fzf-legend`) on `PATH` |
 | `test/helper/startup.vim` | starts Themis after Vim's startup, so `'autoread'` reloads happen    |
 | `test/helper/autoload/` | a no-op vim-plug, and an `fzf#run` that records its spec in `g:suite.fzf` |
 | `test/bin/`             | `fzf`, `gh` and `quarto` stand-ins                                     |
