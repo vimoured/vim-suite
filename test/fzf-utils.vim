@@ -268,6 +268,166 @@ function! s:suite.grep_code_from_a_subdirectory() abort
         \ 'tests: a directory and file globs')
 endfunction
 
+""" Key legends
+"
+" fzf never wraps a header or a footer, and beside a preview they only get
+" the list's columns. Each picker's keys are a legend that the dotfiles'
+" fzf-legend packs into rows that fit the list, as gll's are, in place of
+" fzf.vim's key footer. fzf isn't run: its arguments are read the way fzf reads
+" them, and the legend is what the command fzf runs for it prints.
+
+" fzf's arguments (the options are a list, or a string the shell splits)
+function! s:args(spec) abort
+  let l:opts = get(a:spec, 'options', [])
+  if type(l:opts) == v:t_list
+    return copy(l:opts)
+  endif
+  return split(system("printf '%s\\036' " . l:opts), "\x1e", 1)[: -2]
+endfunction
+
+" The footer fzf shows: the last --footer, unless a --no-footer comes after it
+function! s:footer(args) abort
+  let l:footer = ''
+  for l:i in range(len(a:args))
+    if a:args[l:i] ==# '--footer'
+      let l:footer = a:args[l:i + 1]
+    elseif a:args[l:i] =~# '^--footer='
+      let l:footer = matchstr(a:args[l:i], '=\zs.*')
+    elseif a:args[l:i] ==# '--no-footer'
+      let l:footer = ''
+    endif
+  endfor
+  return l:footer
+endfunction
+
+" The actions fzf runs on a key or event: a --bind on it replaces the ones
+" before, and one whose action starts with + adds to them
+function! s:on(args, event) abort
+  let l:actions = []
+  for l:i in range(len(a:args))
+    let l:bind = a:args[l:i] ==# '--bind' ? get(a:args, l:i + 1, '')
+          \ : matchstr(a:args[l:i], '^--bind=\zs.*')
+    let l:match = matchlist(l:bind, '^\([^:]\+\):\(.*\)$')
+    if empty(l:match) || index(split(l:match[1], ','), a:event) < 0
+      continue
+    endif
+    let l:actions = l:match[2] =~# '^+' ? l:actions + [l:match[2][1:]] : [l:match[2]]
+  endfor
+  return l:actions
+endfunction
+
+" The rows of the legend that the last transform: among the actions puts in
+" the header, colours taken out, with fzf `columns` wide and the preview
+" beside the list `preview_columns` of them (0: hidden)
+function! s:legend(actions, columns, preview_columns) abort
+  let l:commands = filter(map(copy(a:actions),
+        \ 'matchstr(v:val, ''\%(^\|+\)transform:\zs.*'')'), '!empty(v:val)')
+  if empty(l:commands)
+    return []
+  endif
+  let l:out = system(printf('FZF_COLUMNS=%d FZF_PREVIEW_COLUMNS=%d %s',
+        \ a:columns, a:preview_columns, l:commands[-1]))
+  let l:header = matchstr(l:out, '^change-header.\zs\_.*\ze.$')
+  return split(substitute(l:header, "\e\\[[0-9;]*m", '', 'g'), "\n")
+endfunction
+
+" What fzf was last asked to show, brought up by `what` (a key or a command):
+" no footer, and a legend that fits the list beside the preview (50 of 100
+" columns) from the start and after a resize, and again on the toggle key,
+" with the preview hidden
+function! s:assert_legend(what, toggle, beside, hidden) abort
+  let l:args = s:args(s:spec())
+  call assert_equal('', s:footer(l:args), a:what . ': no footer')
+  call assert_equal(a:beside, s:legend(s:on(l:args, 'start') + s:on(l:args, 'load'), 100, 50),
+        \ a:what . ': at the start')
+  call assert_equal(a:beside, s:legend(s:on(l:args, 'resize'), 100, 50), a:what . ': on resize')
+  let l:toggle = s:on(l:args, a:toggle)
+  call assert_match('^toggle-preview+', get(l:toggle, 0, ''), a:what . ': ' . a:toggle . ' toggles the preview')
+  call assert_equal(a:hidden, s:legend(l:toggle, 100, 0), a:what . ': ' . a:toggle . ', the preview hidden')
+endfunction
+
+function! s:suite.legend_of_git_status_files() abort
+  call s:type(s:leader . 'og')
+  call s:assert_legend(s:leader . 'og', 'ctrl-/', [
+        \ 'C-o (show)     Enter (open)',
+        \ 'C-x (hsplit)   C-v (vsplit)',
+        \ 'C-t (tab)      C-/ (toggle preview)',
+        \ ], [
+        \ 'C-o (show)   Enter (open)   C-x (hsplit)   C-v (vsplit)   C-t (tab)   C-/ (toggle preview)',
+        \ ])
+endfunction
+
+function! s:suite.legend_of_files() abort
+  call s:type(s:leader . s:leader)
+  call s:assert_legend(s:leader . s:leader, 'ctrl-/', [
+        \ 'C-o (show)     Enter (open)',
+        \ 'C-x (hsplit)   C-v (vsplit)',
+        \ 'C-t (tab)      C-/ (toggle preview)',
+        \ ], [
+        \ 'C-o (show)   Enter (open)   C-x (hsplit)   C-v (vsplit)   C-t (tab)   C-/ (toggle preview)',
+        \ ])
+endfunction
+
+function! s:suite.legend_of_buffers() abort
+  call s:type(s:leader . 'ob')
+  call s:assert_legend(s:leader . 'ob', 'ctrl-/', [
+        \ 'C-o (show)             C-A-x (unload)',
+        \ 'Enter (open)           C-x (hsplit)',
+        \ 'C-v (vsplit)           C-t (tab)',
+        \ 'C-/ (toggle preview)',
+        \ ], [
+        \ 'C-o (show)             C-A-x (unload)   Enter (open)   C-x (hsplit)   C-v (vsplit)   C-t (tab)',
+        \ 'C-/ (toggle preview)',
+        \ ])
+  call assert_match('^pos:\d\+$', get(s:on(s:args(s:spec()), 'start'), 0, ''),
+        \ 'still starts on the alternate buffer')
+endfunction
+
+function! s:suite.legend_of_grep() abort
+  call s:type(s:leader . 'r/')
+  call s:assert_legend(s:leader . 'r/', 'ctrl-p', [
+        \ 'C-r (regex)            C-f (fixed)',
+        \ 'C-w (word)             C-o (show)',
+        \ 'A-a (all)              A-d (none)',
+        \ 'Enter (open)           C-x (hsplit)',
+        \ 'C-v (vsplit)           C-t (tab)',
+        \ 'C-p (toggle preview)',
+        \ ], [
+        \ 'C-r (regex)    C-f (fixed)    C-w (word)     C-o (show)   A-a (all)              A-d (none)',
+        \ 'Enter (open)   C-x (hsplit)   C-v (vsplit)   C-t (tab)    C-p (toggle preview)',
+        \ ])
+  call assert_match('^reload:rg ', get(s:on(s:args(s:spec()), 'start'), 0, ''),
+        \ 'still starts the search')
+endfunction
+
+function! s:suite.legend_of_rg() abort
+  Rg find_me
+  call s:assert_legend(':Rg', 'ctrl-p', [
+        \ 'C-o (show)     A-a (all)',
+        \ 'A-d (none)     Enter (open)',
+        \ 'C-x (hsplit)   C-v (vsplit)',
+        \ 'C-t (tab)      C-p (toggle preview)',
+        \ ], [
+        \ 'C-o (show)   A-a (all)              A-d (none)   Enter (open)   C-x (hsplit)   C-v (vsplit)',
+        \ 'C-t (tab)    C-p (toggle preview)',
+        \ ])
+endfunction
+
+" The dotfiles' own key, A-t, first
+function! s:suite.legend_of_commits() abort
+  Commits
+  call s:assert_legend(':Commits', 'ctrl-/', [
+        \ 'A-t (stat/patch)       C-o (show)',
+        \ 'C-s (toggle sort)      C-y (yank hashes)',
+        \ 'Enter (open)           C-x (hsplit)',
+        \ 'C-v (vsplit)           C-t (tab)',
+        \ 'C-/ (toggle preview)',
+        \ ], [
+        \ 'A-t (stat/patch)   C-o (show)     C-s (toggle sort)   C-y (yank hashes)      Enter (open)',
+        \ 'C-x (hsplit)       C-v (vsplit)   C-t (tab)           C-/ (toggle preview)',
+        \ ])
+endfunction
+
 """ Completion and pickers
 
 function! s:suite.complete_path_lists_the_same_files() abort
