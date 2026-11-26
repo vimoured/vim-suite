@@ -461,7 +461,21 @@ function! s:suite.oneoff_says_in_its_buffer_how_long_it_took() abort
   let l:bufnr = s:slow_oneoff(1, 0)
   call assert_true(s:oneoff_done(l:bufnr), 'done')
   call assert_match('^slow answered in [12]s$', get(getbufline(l:bufnr, 1), 0, ''))
-  call assert_equal(['the answer'], filter(getbufline(l:bufnr, 2, '$'), '!empty(v:val)'))
+  call assert_equal(['## me', 'what is this', '## agent', 'the answer'],
+        \ filter(getbufline(l:bufnr, 2, '$'), '!empty(v:val)'))
+endfunction
+
+" Its question is under all the context the prompt has: the buffer shows it
+" above the answer, as a session's TUI does
+function! s:suite.oneoff_shows_what_was_asked_above_the_answer() abort
+  let l:bufnr = s:slow_oneoff(0, 0)
+  call assert_equal(['', '## me', '', 'what is this', '', '## agent', ''], getbufline(l:bufnr, 2, 8))
+  call s:oneoff_done(l:bufnr)
+endfunction
+
+function! s:suite.oneoff_shows_the_persona_it_asked() abort
+  let l:bufnr = s:answered_review()
+  call assert_equal(['## me', '', '/review', '', '## agent'], getbufline(l:bufnr, 3, 7))
 endfunction
 
 " Its window closed while it answers (or in another tab), the answer is in a
